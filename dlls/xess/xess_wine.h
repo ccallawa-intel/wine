@@ -29,6 +29,7 @@
 
 const char* xess_result_to_string(xess_result_t result);
 
-void xess_d3d12_clear_init_heap_store(void);
+void xess_d3d12_destroy_heap_trackers(xess_context_handle_t hContext);
+void xess_d3d12_destroy_all_heap_trackers(void);
 
 #endif /* __WINE_XESS_INTERNAL_H */

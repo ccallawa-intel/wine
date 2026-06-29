@@ -19,9 +19,12 @@
 
 #include <stdarg.h>
 
+#include <stdlib.h>
+
 #include "windef.h"
 #include "winbase.h"
 #include "wine/debug.h"
+#include "wine/list.h"
 #define COBJMACROS
 
 #include <initguid.h>
@@ -176,40 +179,109 @@ static xess_result_t translate_heap_to_vk_memory(ID3D12Heap *heap, VkDeviceMemor
 }
 
 /* heap pointer tracking helpers */
-static ID3D12Heap *xess_d3d12_temp_buffer_heap;
-static ID3D12Heap *xess_d3d12_temp_texture_heap;
-
-static void xess_d3d12_store_init_heaps(ID3D12Heap *temp_buffer_heap, ID3D12Heap *temp_texture_heap)
+struct xess_d3d12_heap_tracker
 {
+    struct list entry;
+    xess_context_handle_t context;
+    ID3D12Heap *temp_buffer_heap;
+    ID3D12Heap *temp_texture_heap;
+};
+
+static struct list xess_d3d12_heap_trackers = LIST_INIT(xess_d3d12_heap_trackers);
+
+static void xess_d3d12_release_heap_trackers(struct xess_d3d12_heap_tracker *entry)
+{
+    if (entry->temp_texture_heap)
+        ID3D12Heap_Release(entry->temp_texture_heap);
+    if (entry->temp_buffer_heap)
+        ID3D12Heap_Release(entry->temp_buffer_heap);
+}
+
+static struct xess_d3d12_heap_tracker *xess_d3d12_find_heap_trackers(xess_context_handle_t hContext)
+{
+    struct xess_d3d12_heap_tracker *entry;
+
+    LIST_FOR_EACH_ENTRY(entry, &xess_d3d12_heap_trackers, struct xess_d3d12_heap_tracker, entry)
+    {
+        if (entry->context == hContext)
+            return entry;
+    }
+
+    return NULL;
+}
+
+static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
+    ID3D12Heap *temp_buffer_heap, ID3D12Heap *temp_texture_heap)
+{
+    struct xess_d3d12_heap_tracker *entry;
+
     if (temp_buffer_heap)
         ID3D12Heap_AddRef(temp_buffer_heap);
     if (temp_texture_heap)
         ID3D12Heap_AddRef(temp_texture_heap);
 
-    if (xess_d3d12_temp_buffer_heap)
-        ID3D12Heap_Release(xess_d3d12_temp_buffer_heap);
-    if (xess_d3d12_temp_texture_heap)
-        ID3D12Heap_Release(xess_d3d12_temp_texture_heap);
+    entry = xess_d3d12_find_heap_trackers(hContext);
+    if (!entry)
+    {
+        if (!(entry = calloc(1, sizeof(*entry))))
+        {
+            if (temp_texture_heap)
+                ID3D12Heap_Release(temp_texture_heap);
+            if (temp_buffer_heap)
+                ID3D12Heap_Release(temp_buffer_heap);
+            return FALSE;
+        }
 
-    xess_d3d12_temp_buffer_heap = temp_buffer_heap;
-    xess_d3d12_temp_texture_heap = temp_texture_heap;
+        entry->context = hContext;
+        list_add_tail(&xess_d3d12_heap_trackers, &entry->entry);
+    }
+    else
+    {
+        xess_d3d12_release_heap_trackers(entry);
+    }
+
+    entry->temp_buffer_heap = temp_buffer_heap;
+    entry->temp_texture_heap = temp_texture_heap;
+    return TRUE;
 }
 
-static void xess_d3d12_get_init_heaps(ID3D12Heap **temp_buffer_heap, ID3D12Heap **temp_texture_heap)
+static void xess_d3d12_get_heap_trackers(xess_context_handle_t hContext,
+    ID3D12Heap **temp_buffer_heap, ID3D12Heap **temp_texture_heap)
 {
-    *temp_buffer_heap = xess_d3d12_temp_buffer_heap;
-    *temp_texture_heap = xess_d3d12_temp_texture_heap;
+    struct xess_d3d12_heap_tracker *entry;
+
+    *temp_buffer_heap = NULL;
+    *temp_texture_heap = NULL;
+
+    if ((entry = xess_d3d12_find_heap_trackers(hContext)))
+    {
+        *temp_buffer_heap = entry->temp_buffer_heap;
+        *temp_texture_heap = entry->temp_texture_heap;
+    }
 }
 
-void xess_d3d12_clear_init_heap_store()
+void xess_d3d12_destroy_heap_trackers(xess_context_handle_t hContext)
 {
-    if (xess_d3d12_temp_texture_heap)
-        ID3D12Heap_Release(xess_d3d12_temp_texture_heap);
-    if (xess_d3d12_temp_buffer_heap)
-        ID3D12Heap_Release(xess_d3d12_temp_buffer_heap);
+    struct xess_d3d12_heap_tracker *entry;
 
-    xess_d3d12_temp_buffer_heap = NULL;
-    xess_d3d12_temp_texture_heap = NULL;
+    if ((entry = xess_d3d12_find_heap_trackers(hContext)))
+    {
+        list_remove(&entry->entry);
+        xess_d3d12_release_heap_trackers(entry);
+        free(entry);
+    }
+}
+
+void xess_d3d12_destroy_all_heap_trackers(void)
+{
+    struct xess_d3d12_heap_tracker *entry, *next;
+
+    LIST_FOR_EACH_ENTRY_SAFE(entry, next, &xess_d3d12_heap_trackers, struct xess_d3d12_heap_tracker, entry)
+    {
+        list_remove(&entry->entry);
+        xess_d3d12_release_heap_trackers(entry);
+        free(entry);
+    }
 }
 
 xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_handle_t *phContext)
@@ -298,7 +370,12 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
 
     if (unix_params.result == XESS_RESULT_SUCCESS)
     {
-        xess_d3d12_store_init_heaps(pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap);
+        if (!xess_d3d12_track_heaps(hContext, pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap))
+        {
+            ERR("Failed to track heaps for context %p\n", hContext);
+            xessDestroyContext(hContext);
+            return XESS_RESULT_ERROR_UNKNOWN;
+        }
     }
 
     TRACE("xessVKInit result: %s (0x%x)\n", xess_result_to_string(unix_params.result), unix_params.result);
@@ -326,7 +403,7 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
     pInitParams->initFlags = vk_init_params.initFlags;
     pInitParams->creationNodeMask = vk_init_params.creationNodeMask;
     pInitParams->visibleNodeMask = vk_init_params.visibleNodeMask;
-    xess_d3d12_get_init_heaps(&pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap);
+    xess_d3d12_get_heap_trackers(hContext, &pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap);
     pInitParams->bufferHeapOffset = vk_init_params.bufferHeapOffset;
     pInitParams->textureHeapOffset = vk_init_params.textureHeapOffset;
     pInitParams->pPipelineLibrary = NULL; // pipelines are optional and hard to implement
