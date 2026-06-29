@@ -55,6 +55,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
             TRACE("XeSS Unix library initialized successfully\n");
         break;
     case DLL_PROCESS_DETACH:
+        xess_d3d12_destroy_all_heap_trackers();
         break;
     }
 
@@ -67,7 +68,7 @@ XESS_API xess_result_t xessDestroyContext(xess_context_handle_t hContext)
     TRACE("(%p)\n", hContext);
     WINE_UNIX_CALL(unix_xessDestroyContext, &params);
     if (params.result == XESS_RESULT_SUCCESS)
-        xess_d3d12_clear_init_heap_store();
+        xess_d3d12_destroy_heap_trackers(hContext);
     return params.result;
 }
 
