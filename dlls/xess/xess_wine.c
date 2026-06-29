@@ -50,7 +50,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
             return FALSE;
         }
         if (params.result != XESS_RESULT_SUCCESS)
-            TRACE("XeSS native library not available (this is normal if libxess.so is not installed)\n");
+            TRACE("XeSS native library not available\n");
         else
             TRACE("XeSS Unix library initialized successfully\n");
         break;

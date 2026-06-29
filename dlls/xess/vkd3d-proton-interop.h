@@ -159,7 +159,4 @@ interface ID3D12DXVKInteropDevice3 {
 #define ID3D12DXVKInteropDevice3_UnlockVulkanQueue(This,queue) (This)->lpVtbl->UnlockVulkanQueue(This,queue)
 
 /*** ID3D12DXVKInteropDevice3 methods ***/
-#define ID3D12DXVKInteropDevice3_QueryInterface(This,riid,object) (This)->lpVtbl->QueryInterface(This,riid,object)
-#define ID3D12DXVKInteropDevice3_AddRef(This) (This)->lpVtbl->AddRef(This)
-#define ID3D12DXVKInteropDevice3_Release(This) (This)->lpVtbl->Release(This)
 #define ID3D12DXVKInteropDevice3_GetVulkanHeapInfo(This,heap,vk_memory,heap_offset,vk_memory_type) (This)->lpVtbl->GetVulkanHeapInfo(This,heap,vk_memory,heap_offset,vk_memory_type)

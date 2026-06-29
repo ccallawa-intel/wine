@@ -50,7 +50,7 @@ WINEDEBUG=+xess wine YourGame.exe
 
 ## License
 
-This implementation is license under Wine's LGPL 2.1 license.
+This implementation is licensed under Wine's LGPL 2.1 license.
 
 ## References
 

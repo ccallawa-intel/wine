@@ -166,14 +166,12 @@ static xess_result_t translate_heap_to_vk_memory(ID3D12Heap *heap, VkDeviceMemor
     if (FAILED(hr))
     {
         WARN("GetVulkanHeapInfo failed: %#lx\n", hr);
-        ID3D12Device_Release(device);
         return XESS_RESULT_ERROR_UNSUPPORTED;
     }
 
     *vk_memory = (VkDeviceMemory)vk_memory_u64;
     *base_offset = heap_offset_u64;
-    TRACE("Got memory handle %p with offset %I64ux and memory type %u.\n", vk_memory, *base_offset, vk_memory_type);
-    ID3D12Device_Release(device);
+    TRACE("Got memory handle %#I64x with offset %#I64x and memory type %u.\n", vk_memory_u64, *base_offset, vk_memory_type);
     return XESS_RESULT_SUCCESS;
 }
 
