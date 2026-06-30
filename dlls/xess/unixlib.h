@@ -24,6 +24,21 @@
 #include "wine/unixlib.h"
 #include "xess_wine.h"
 
+#define XESS_UNIX_DISPATCH_ERROR XESS_RESULT_ERROR_CANT_LOAD_LIBRARY
+
+#define XESS_WINE_UNIX_CALL(func, params) \
+    do \
+    { \
+        NTSTATUS status__; \
+        (params)->result = XESS_UNIX_DISPATCH_ERROR; \
+        status__ = WINE_UNIX_CALL(func, params); \
+        if (status__) \
+        { \
+            ERR("Unix call %s failed, status %#lx\n", #func, status__); \
+            return XESS_UNIX_DISPATCH_ERROR; \
+        } \
+    } while (0)
+
 enum xess_funcs
 {
     unix_xess_init,
