@@ -99,7 +99,7 @@ static xess_result_t (*p_xessSetExposureMultiplier)(xess_context_handle_t, float
 static xess_result_t (*p_xessSetMaxResponsiveMaskValue)(xess_context_handle_t, float);
 static xess_result_t (*p_xessSetLoggingCallback)(xess_context_handle_t, xess_logging_level_t, xess_app_log_callback_t);
 static xess_result_t (*p_xessIsOptimalDriver)(xess_context_handle_t);
-static xess_result_t (*p_xessForceLegacyScaleFactors)(xess_context_handle_t, uint32_t);
+static xess_result_t (*p_xessForceLegacyScaleFactors)(xess_context_handle_t, bool);
 static xess_result_t (*p_xessGetPipelineBuildStatus)(xess_context_handle_t);
 static xess_result_t (*p_xessSelectNetworkModel)(xess_context_handle_t, xess_network_model_t);
 static xess_result_t (*p_xessStartDump)(xess_context_handle_t, const xess_dump_parameters_t *);
