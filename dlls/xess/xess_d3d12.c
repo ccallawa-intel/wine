@@ -101,10 +101,21 @@ static xess_result_t translate_texture_resource(
     TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
           texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
 
+    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (pTextureInfo->format == VK_FORMAT_D16_UNORM || pTextureInfo->format == VK_FORMAT_X8_D24_UNORM_PACK32 ||
+        pTextureInfo->format == VK_FORMAT_D32_SFLOAT || pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+        pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+    {
+        aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        if (pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+            pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+            aspect_mask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+
     pTextureInfo->image = (VkImage)vk_handle;
     pTextureInfo->width = desc.Width;
     pTextureInfo->height = desc.Height;
-    pTextureInfo->subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    pTextureInfo->subresourceRange.aspectMask = aspect_mask;
     pTextureInfo->subresourceRange.baseMipLevel = 0;
     pTextureInfo->subresourceRange.levelCount = desc.MipLevels;
     pTextureInfo->subresourceRange.baseArrayLayer = 0;
@@ -112,7 +123,7 @@ static xess_result_t translate_texture_resource(
 
     /* Create VkImageView */
     *pImageView = get_vk_image_view(vk_device, pfn_vkCreateImageView,
-        pTextureInfo->image, pTextureInfo->format, &desc, VK_IMAGE_ASPECT_COLOR_BIT);
+        pTextureInfo->image, pTextureInfo->format, &desc, aspect_mask);
     if (*pImageView == VK_NULL_HANDLE)
     {
         WARN("Failed to create %s texture image view\n", texture_name);
