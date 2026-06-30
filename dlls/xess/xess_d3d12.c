@@ -431,6 +431,9 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
 
     TRACE("(%p, %p, %p)\n", hContext, pCommandList, pExecParams);
 
+    if (!pExecParams)
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+
     memset(&vk_exec_params, 0, sizeof(vk_exec_params));
     memset(&unix_params, 0, sizeof(unix_params));
 
