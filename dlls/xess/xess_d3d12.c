@@ -86,11 +86,13 @@ static xess_result_t translate_texture_resource(
     UINT64 vk_handle;
     UINT64 buffer_offset;
     HRESULT hr;
+    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
 
     TRACE("Handling %s texture...\n", texture_name);
 
     hr = ID3D12DXVKInteropDevice3_GetVulkanResourceInfo1(interop, pTexture,
         &vk_handle, &buffer_offset, &pTextureInfo->format);
+    (void)buffer_offset; // not used for textures
     if (FAILED(hr))
     {
         WARN("Failed to get %s texture info: %lx\n", texture_name, hr);
@@ -100,8 +102,6 @@ static xess_result_t translate_texture_resource(
     desc = ID3D12Resource_GetDesc(pTexture);
     TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
           texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
-
-    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
     if (pTextureInfo->format == VK_FORMAT_D16_UNORM || pTextureInfo->format == VK_FORMAT_X8_D24_UNORM_PACK32 ||
         pTextureInfo->format == VK_FORMAT_D32_SFLOAT || pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT ||
         pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
