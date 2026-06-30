@@ -31,7 +31,7 @@ XESS_API xess_result_t xessVKGetRequiredInstanceExtensions(uint32_t* instanceExt
 {
     struct xess_vk_get_required_instance_extensions_params params = { instanceExtensionsCount, instanceExtensions, minVkApiVersion };
     TRACE("(%p, %p, %p)\n", instanceExtensionsCount, instanceExtensions, minVkApiVersion);
-    WINE_UNIX_CALL(unix_xessVKGetRequiredInstanceExtensions, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKGetRequiredInstanceExtensions, &params);
     return params.result;
 }
 
@@ -40,7 +40,7 @@ XESS_API xess_result_t xessVKGetRequiredDeviceExtensions(VkInstance instance, Vk
 {
     struct xess_vk_get_required_device_extensions_params params = { instance, physicalDevice, deviceExtensionsCount, deviceExtensions };
     TRACE("(%p, %p, %p, %p)\n", instance, physicalDevice, deviceExtensionsCount, deviceExtensions);
-    WINE_UNIX_CALL(unix_xessVKGetRequiredDeviceExtensions, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKGetRequiredDeviceExtensions, &params);
     return params.result;
 }
 
@@ -48,7 +48,7 @@ XESS_API xess_result_t xessVKGetRequiredDeviceFeatures(VkInstance instance, VkPh
 {
     struct xess_vk_get_required_device_features_params params = { instance, physicalDevice, features };
     TRACE("(%p, %p, %p)\n", instance, physicalDevice, features);
-    WINE_UNIX_CALL(unix_xessVKGetRequiredDeviceFeatures, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKGetRequiredDeviceFeatures, &params);
     return params.result;
 }
 
@@ -56,7 +56,7 @@ XESS_API xess_result_t xessVKCreateContext(VkInstance instance, VkPhysicalDevice
 {
     struct xess_vk_create_context_params params = { instance, physicalDevice, device, phContext };
     TRACE("(%p, %p, %p, %p)\n", instance, physicalDevice, device, phContext);
-    WINE_UNIX_CALL(unix_xessVKCreateContext, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKCreateContext, &params);
     return params.result;
 }
 
@@ -64,7 +64,7 @@ XESS_API xess_result_t xessVKBuildPipelines(xess_context_handle_t hContext, VkPi
 {
     struct xess_vk_build_pipelines_params params = { hContext, pipelineCache, blocking, initFlags };
     // TRACE("(%p, %p, %u, %u)\n", hContext, pipelineCache, blocking, initFlags);
-    WINE_UNIX_CALL(unix_xessVKBuildPipelines, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKBuildPipelines, &params);
     return params.result;
 }
 
@@ -72,7 +72,7 @@ XESS_API xess_result_t xessVKInit(xess_context_handle_t hContext, const xess_vk_
 {
     struct xess_vk_init_params params = { hContext, pInitParams };
     TRACE("(%p, %p)\n", hContext, pInitParams);
-    WINE_UNIX_CALL(unix_xessVKInit, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKInit, &params);
     return params.result;
 }
 
@@ -80,7 +80,7 @@ XESS_API xess_result_t xessVKGetInitParams(xess_context_handle_t hContext, xess_
 {
     struct xess_vk_get_init_params_params params = { hContext, pInitParams };
     TRACE("(%p, %p)\n", hContext, pInitParams);
-    WINE_UNIX_CALL(unix_xessVKGetInitParams, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKGetInitParams, &params);
     return params.result;
 }
 
@@ -88,6 +88,6 @@ XESS_API xess_result_t xessVKExecute(xess_context_handle_t hContext, VkCommandBu
 {
     struct xess_vk_execute_params params = { hContext, commandBuffer, pExecParams };
     TRACE("(%p, %p, %p)\n", hContext, commandBuffer, pExecParams);
-    WINE_UNIX_CALL(unix_xessVKExecute, &params);
+    XESS_WINE_UNIX_CALL(unix_xessVKExecute, &params);
     return params.result;
 }

@@ -292,6 +292,7 @@ xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_h
     ID3D12DXVKInteropDevice3 *interop = NULL;
     struct xess_vk_create_context_params unix_params;
     HRESULT hr;
+    NTSTATUS status;
 
     TRACE("(%p, %p)\n", pDevice, phContext);
 
@@ -318,8 +319,14 @@ xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_h
     unix_params.physicalDevice = vk_physical_device;
     unix_params.device = vk_device;
     unix_params.phContext = phContext;
+    unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
 
-    WINE_UNIX_CALL(unix_xessVKCreateContext, &unix_params);
+    status = WINE_UNIX_CALL(unix_xessVKCreateContext, &unix_params);
+    if (status)
+    {
+        ERR("Unix call unix_xessVKCreateContext failed, status %#lx\n", status);
+        return XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    }
     TRACE("xessVKCreateContext result: %s (0x%x)\n", xess_result_to_string(unix_params.result), unix_params.result);
     return unix_params.result;
 }
@@ -338,6 +345,7 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
     struct xess_vk_get_init_params_params unix_params;
     uint64_t buffer_heap_base_offset = 0;
     uint64_t texture_heap_base_offset = 0;
+    NTSTATUS status;
 
     TRACE("(%p, %p)\n", hContext, pInitParams);
 
@@ -366,7 +374,13 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
     memset(&unix_params, 0, sizeof(unix_params));
     unix_params.hContext = hContext;
     unix_params.pInitParams = &vk_init_params;
-    WINE_UNIX_CALL(unix_xessVKInit, &unix_params);
+    unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    status = WINE_UNIX_CALL(unix_xessVKInit, &unix_params);
+    if (status)
+    {
+        ERR("Unix call unix_xessVKInit failed, status %#lx\n", status);
+        return XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    }
 
     if (unix_params.result == XESS_RESULT_SUCCESS)
     {
@@ -386,12 +400,19 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
 {
     xess_vk_init_params_t vk_init_params;
     struct xess_vk_get_init_params_params unix_params;
+    NTSTATUS status;
 
     TRACE("(%p, %p)\n", hContext, pInitParams);
 
     unix_params.hContext = hContext;
     unix_params.pInitParams = &vk_init_params;
-    WINE_UNIX_CALL(unix_xessVKGetInitParams, &unix_params);
+    unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    status = WINE_UNIX_CALL(unix_xessVKGetInitParams, &unix_params);
+    if (status)
+    {
+        ERR("Unix call unix_xessVKGetInitParams failed, status %#lx\n", status);
+        return XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    }
     if (unix_params.result != XESS_RESULT_SUCCESS) {
         TRACE("xessVKGetInitParams result: %s (0x%x)\n", xess_result_to_string(unix_params.result), unix_params.result);
         return unix_params.result;
@@ -428,6 +449,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     UINT image_view_count = 0;
     PFN_vkCreateImageView pfn_vkCreateImageView = NULL;
     PFN_vkDestroyImageView pfn_vkDestroyImageView = NULL;
+    NTSTATUS status;
 
     TRACE("(%p, %p, %p)\n", hContext, pCommandList, pExecParams);
 
@@ -577,8 +599,15 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     unix_params.hContext = hContext;
     unix_params.pCommandBuffer = vk_command_buffer;
     unix_params.pExecParams = &vk_exec_params;
+    unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
     TRACE("Executing XeSS call...\n");
-    WINE_UNIX_CALL(unix_xessVKExecute, &unix_params);
+    status = WINE_UNIX_CALL(unix_xessVKExecute, &unix_params);
+    if (status)
+    {
+        ERR("Unix call unix_xessVKExecute failed, status %#lx\n", status);
+        result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+        goto cleanup;
+    }
     result = unix_params.result;
 
 cleanup:
