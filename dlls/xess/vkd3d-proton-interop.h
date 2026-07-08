@@ -8,6 +8,16 @@
  * version 2.1 of the License, or (at your option) any later version.
  */
 
+#ifndef __WINE_VKD3D_PROTON_INTEROP_H
+#define __WINE_VKD3D_PROTON_INTEROP_H
+
+#include <d3d12.h>
+#ifdef __WINESRC__
+#include "wine/vulkan.h"
+#else
+#include <vulkan/vulkan.h>
+#endif
+
 typedef interface ID3D12DXVKInteropDevice3 ID3D12DXVKInteropDevice3;
 
 static const GUID IID_ID3D12DXVKInteropDevice3 = {0x22a70184, 0xa6a4, 0x4c24, {0xbf, 0x97, 0x7d, 0x6d, 0xf9, 0xf1, 0x2d, 0x8a}};
@@ -160,3 +170,5 @@ interface ID3D12DXVKInteropDevice3 {
 
 /*** ID3D12DXVKInteropDevice3 methods ***/
 #define ID3D12DXVKInteropDevice3_GetVulkanHeapInfo(This,heap,vk_memory,heap_offset,vk_memory_type) (This)->lpVtbl->GetVulkanHeapInfo(This,heap,vk_memory,heap_offset,vk_memory_type)
+
+#endif /* __WINE_VKD3D_PROTON_INTEROP_H */
