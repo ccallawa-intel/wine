@@ -26,6 +26,7 @@
 @ cdecl xessVKExecute(ptr ptr ptr)
 @ cdecl xessD3D12CreateContext(ptr ptr)
 @ cdecl xessD3D12Init(ptr ptr)
+@ cdecl xessD3D12GetInitParams(ptr ptr)
 @ cdecl xessD3D12Execute(ptr ptr ptr)
 @ cdecl xessD3D12BuildPipelines(ptr ptr long long)
 @ cdecl xessSelectNetworkModel(ptr long)
