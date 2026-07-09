@@ -29,7 +29,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(xess);
 
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
 {
-    struct xess_init_params params;
+    struct xess_init_params params = {0};
     NTSTATUS status;
 
     TRACE("(%p, %lu, %p)\n", instance, reason, reserved);
