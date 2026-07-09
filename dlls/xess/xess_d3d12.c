@@ -197,6 +197,8 @@ struct xess_d3d12_heap_tracker
     xess_context_handle_t context;
     ID3D12Heap *temp_buffer_heap;
     ID3D12Heap *temp_texture_heap;
+    uint64_t buffer_heap_base_offset;
+    uint64_t texture_heap_base_offset;
 };
 
 static struct list xess_d3d12_heap_trackers = LIST_INIT(xess_d3d12_heap_trackers);
@@ -223,7 +225,8 @@ static struct xess_d3d12_heap_tracker *xess_d3d12_find_heap_trackers(xess_contex
 }
 
 static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
-    ID3D12Heap *temp_buffer_heap, ID3D12Heap *temp_texture_heap)
+    ID3D12Heap *temp_buffer_heap, ID3D12Heap *temp_texture_heap,
+    uint64_t buffer_heap_base_offset, uint64_t texture_heap_base_offset)
 {
     struct xess_d3d12_heap_tracker *entry;
 
@@ -254,21 +257,28 @@ static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
 
     entry->temp_buffer_heap = temp_buffer_heap;
     entry->temp_texture_heap = temp_texture_heap;
+    entry->buffer_heap_base_offset = buffer_heap_base_offset;
+    entry->texture_heap_base_offset = texture_heap_base_offset;
     return TRUE;
 }
 
 static void xess_d3d12_get_heap_trackers(xess_context_handle_t hContext,
-    ID3D12Heap **temp_buffer_heap, ID3D12Heap **temp_texture_heap)
+    ID3D12Heap **temp_buffer_heap, ID3D12Heap **temp_texture_heap,
+    uint64_t *buffer_heap_base_offset, uint64_t *texture_heap_base_offset)
 {
     struct xess_d3d12_heap_tracker *entry;
 
     *temp_buffer_heap = NULL;
     *temp_texture_heap = NULL;
+    *buffer_heap_base_offset = 0;
+    *texture_heap_base_offset = 0;
 
     if ((entry = xess_d3d12_find_heap_trackers(hContext)))
     {
         *temp_buffer_heap = entry->temp_buffer_heap;
         *temp_texture_heap = entry->temp_texture_heap;
+        *buffer_heap_base_offset = entry->buffer_heap_base_offset;
+        *texture_heap_base_offset = entry->texture_heap_base_offset;
     }
 }
 
@@ -402,7 +412,8 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
 
     if (unix_params.result == XESS_RESULT_SUCCESS)
     {
-        if (!xess_d3d12_track_heaps(hContext, pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap))
+        if (!xess_d3d12_track_heaps(hContext, pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap,
+            buffer_heap_base_offset, texture_heap_base_offset))
         {
             ERR("Failed to track heaps for context %p\n", hContext);
             xessDestroyContext(hContext);
@@ -418,6 +429,8 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
 {
     xess_vk_init_params_t vk_init_params;
     struct xess_vk_get_init_params_params unix_params;
+    uint64_t buffer_heap_base_offset = 0;
+    uint64_t texture_heap_base_offset = 0;
     NTSTATUS status;
 
     TRACE("(%p, %p)\n", hContext, pInitParams);
@@ -447,9 +460,27 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
     pInitParams->initFlags = vk_init_params.initFlags;
     pInitParams->creationNodeMask = vk_init_params.creationNodeMask;
     pInitParams->visibleNodeMask = vk_init_params.visibleNodeMask;
-    xess_d3d12_get_heap_trackers(hContext, &pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap);
-    pInitParams->bufferHeapOffset = vk_init_params.bufferHeapOffset;
-    pInitParams->textureHeapOffset = vk_init_params.textureHeapOffset;
+    xess_d3d12_get_heap_trackers(hContext, &pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap,
+        &buffer_heap_base_offset, &texture_heap_base_offset);
+
+    if (vk_init_params.bufferHeapOffset >= buffer_heap_base_offset)
+        pInitParams->bufferHeapOffset = vk_init_params.bufferHeapOffset - buffer_heap_base_offset;
+    else
+    {
+        WARN("Vulkan buffer heap offset %#I64x is smaller than base %#I64x for context %p\n",
+            vk_init_params.bufferHeapOffset, buffer_heap_base_offset, hContext);
+        pInitParams->bufferHeapOffset = 0;
+    }
+
+    if (vk_init_params.textureHeapOffset >= texture_heap_base_offset)
+        pInitParams->textureHeapOffset = vk_init_params.textureHeapOffset - texture_heap_base_offset;
+    else
+    {
+        WARN("Vulkan texture heap offset %#I64x is smaller than base %#I64x for context %p\n",
+            vk_init_params.textureHeapOffset, texture_heap_base_offset, hContext);
+        pInitParams->textureHeapOffset = 0;
+    }
+
     pInitParams->pPipelineLibrary = NULL; // pipelines are optional and hard to implement
 
     return XESS_RESULT_SUCCESS;
