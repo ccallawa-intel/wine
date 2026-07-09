@@ -308,6 +308,9 @@ xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_h
 
     TRACE("(%p, %p)\n", pDevice, phContext);
 
+    if (!pDevice || !phContext)
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+
     hr = ID3D12Device_QueryInterface(pDevice, &IID_ID3D12DXVKInteropDevice3, (void**)&interop);
     if (FAILED(hr))
     {
@@ -360,6 +363,9 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
     NTSTATUS status;
 
     TRACE("(%p, %p)\n", hContext, pInitParams);
+
+    if (!pInitParams)
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
 
     memset(&vk_init_params, 0, sizeof(vk_init_params));
     vk_init_params.outputResolution.x = pInitParams->outputResolution.x;
@@ -415,6 +421,11 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
     NTSTATUS status;
 
     TRACE("(%p, %p)\n", hContext, pInitParams);
+
+    if (!pInitParams)
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+
+    memset(&vk_init_params, 0, sizeof(vk_init_params));
 
     unix_params.hContext = hContext;
     unix_params.pInitParams = &vk_init_params;
