@@ -480,36 +480,751 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
 
 typedef ULONG PTR32;
 
-static NTSTATUS wow64_xess_init( void *args ) { return xess_init( args ); }
-static NTSTATUS wow64_xess_destroy_context( void *args ) { return xess_destroy_context( args ); }
-static NTSTATUS wow64_xess_get_version( void *args ) { return xess_get_version( args ); }
-static NTSTATUS wow64_xess_get_intel_xefx_version( void *args ) { return xess_get_intel_xefx_version( args ); }
-static NTSTATUS wow64_xess_get_properties( void *args ) { return xess_get_properties( args ); }
-static NTSTATUS wow64_xess_get_input_resolution( void *args ) { return xess_get_input_resolution( args ); }
-static NTSTATUS wow64_xess_get_optimal_input_resolution( void *args ) { return xess_get_optimal_input_resolution( args ); }
-static NTSTATUS wow64_xess_get_jitter_scale( void *args ) { return xess_get_jitter_scale( args ); }
-static NTSTATUS wow64_xess_get_velocity_scale( void *args ) { return xess_get_velocity_scale( args ); }
-static NTSTATUS wow64_xess_get_exposure_multiplier( void *args ) { return xess_get_exposure_multiplier( args ); }
-static NTSTATUS wow64_xess_get_max_responsive_mask_value( void *args ) { return xess_get_max_responsive_mask_value( args ); }
-static NTSTATUS wow64_xess_set_velocity_scale( void *args ) { return xess_set_velocity_scale( args ); }
-static NTSTATUS wow64_xess_set_jitter_scale( void *args ) { return xess_set_jitter_scale( args ); }
-static NTSTATUS wow64_xess_set_exposure_multiplier( void *args ) { return xess_set_exposure_multiplier( args ); }
-static NTSTATUS wow64_xess_set_max_responsive_mask_value( void *args ) { return xess_set_max_responsive_mask_value( args ); }
-static NTSTATUS wow64_xess_set_logging_callback( void *args ) { return xess_set_logging_callback( args ); }
-static NTSTATUS wow64_xess_is_optimal_driver( void *args ) { return xess_is_optimal_driver( args ); }
-static NTSTATUS wow64_xess_force_legacy_scale_factors( void *args ) { return xess_force_legacy_scale_factors( args ); }
-static NTSTATUS wow64_xess_get_pipeline_build_status( void *args ) { return xess_get_pipeline_build_status( args ); }
-static NTSTATUS wow64_xess_select_network_model( void *args ) { return xess_select_network_model( args ); }
-static NTSTATUS wow64_xess_start_dump( void *args ) { return xess_start_dump( args ); }
-static NTSTATUS wow64_xess_get_profiling_data( void *args ) { return xess_get_profiling_data( args ); }
-static NTSTATUS wow64_xess_vk_get_required_instance_extensions( void *args ) { return xess_vk_get_required_instance_extensions( args ); }
-static NTSTATUS wow64_xess_vk_get_required_device_extensions( void *args ) { return xess_vk_get_required_device_extensions( args ); }
-static NTSTATUS wow64_xess_vk_get_required_device_features( void *args ) { return xess_vk_get_required_device_features( args ); }
-static NTSTATUS wow64_xess_vk_create_context( void *args ) { return xess_vk_create_context( args ); }
-static NTSTATUS wow64_xess_vk_build_pipelines( void *args ) { return xess_vk_build_pipelines( args ); }
-static NTSTATUS wow64_xess_vk_init( void *args ) { return xess_vk_init( args ); }
-static NTSTATUS wow64_xess_vk_get_init_params( void *args ) { return xess_vk_get_init_params( args ); }
-static NTSTATUS wow64_xess_vk_execute( void *args ) { return xess_vk_execute( args ); }
+struct xess_get_version_params32
+{
+    PTR32 pVersion;
+    xess_result_t result;
+};
+
+struct xess_get_intel_xefx_version_params32
+{
+    PTR32 hContext;
+    PTR32 pVersion;
+    xess_result_t result;
+};
+
+struct xess_get_properties_params32
+{
+    PTR32 hContext;
+    PTR32 pOutputResolution;
+    PTR32 pProperties;
+    xess_result_t result;
+};
+
+struct xess_get_input_resolution_params32
+{
+    PTR32 hContext;
+    PTR32 pOutputResolution;
+    xess_quality_settings_t qualitySetting;
+    PTR32 pInputResolution;
+    xess_result_t result;
+};
+
+struct xess_get_optimal_input_resolution_params32
+{
+    PTR32 hContext;
+    PTR32 pOutputResolution;
+    xess_quality_settings_t qualitySetting;
+    PTR32 pMinResolution;
+    PTR32 pMaxResolution;
+    PTR32 pOptimalResolution;
+    xess_result_t result;
+};
+
+struct xess_get_jitter_scale_params32
+{
+    PTR32 hContext;
+    PTR32 pX;
+    PTR32 pY;
+    xess_result_t result;
+};
+
+struct xess_get_velocity_scale_params32
+{
+    PTR32 hContext;
+    PTR32 pX;
+    PTR32 pY;
+    xess_result_t result;
+};
+
+struct xess_get_exposure_multiplier_params32
+{
+    PTR32 hContext;
+    PTR32 pScale;
+    xess_result_t result;
+};
+
+struct xess_get_max_responsive_mask_value_params32
+{
+    PTR32 hContext;
+    PTR32 pMaxValue;
+    xess_result_t result;
+};
+
+struct xess_destroy_context_params32
+{
+    PTR32 hContext;
+    xess_result_t result;
+};
+
+struct xess_set_velocity_scale_params32
+{
+    PTR32 hContext;
+    float x;
+    float y;
+    xess_result_t result;
+};
+
+struct xess_set_jitter_scale_params32
+{
+    PTR32 hContext;
+    float x;
+    float y;
+    xess_result_t result;
+};
+
+struct xess_set_exposure_multiplier_params32
+{
+    PTR32 hContext;
+    float scale;
+    xess_result_t result;
+};
+
+struct xess_set_max_responsive_mask_value_params32
+{
+    PTR32 hContext;
+    float maxValue;
+    xess_result_t result;
+};
+
+struct xess_set_logging_callback_params32
+{
+    PTR32 hContext;
+    xess_logging_level_t loggingLevel;
+    PTR32 loggingFunction;
+    xess_result_t result;
+};
+
+struct xess_is_optimal_driver_params32
+{
+    PTR32 hContext;
+    xess_result_t result;
+};
+
+struct xess_force_legacy_scale_factors_params32
+{
+    PTR32 hContext;
+    bool force;
+    xess_result_t result;
+};
+
+struct xess_get_pipeline_build_status_params32
+{
+    PTR32 hContext;
+    xess_result_t result;
+};
+
+struct xess_select_network_model_params32
+{
+    PTR32 hContext;
+    xess_network_model_t network;
+    xess_result_t result;
+};
+
+struct xess_dump_parameters_t32
+{
+    PTR32 path;
+    uint32_t frame_idx;
+    uint32_t frame_count;
+    xess_dump_elements_mask_t dump_elements_mask;
+};
+
+struct xess_start_dump_params32
+{
+    PTR32 hContext;
+    PTR32 dump_parameters;
+    xess_result_t result;
+};
+
+struct xess_get_profiling_data_params32
+{
+    PTR32 hContext;
+    PTR32 pProfilingData;
+    xess_result_t result;
+};
+
+struct xess_vk_get_required_instance_extensions_params32
+{
+    PTR32 instanceExtensionsCount;
+    PTR32 instanceExtensions;
+    PTR32 minVkApiVersion;
+    xess_result_t result;
+};
+
+struct xess_vk_get_required_device_extensions_params32
+{
+    PTR32 instance;
+    PTR32 physicalDevice;
+    PTR32 deviceExtensionsCount;
+    PTR32 deviceExtensions;
+    xess_result_t result;
+};
+
+struct xess_vk_get_required_device_features_params32
+{
+    PTR32 instance;
+    PTR32 physicalDevice;
+    PTR32 features;
+    xess_result_t result;
+};
+
+struct xess_vk_create_context_params32
+{
+    PTR32 instance;
+    PTR32 physicalDevice;
+    PTR32 device;
+    PTR32 phContext;
+    xess_result_t result;
+};
+
+struct xess_vk_init_params_t32
+{
+    xess_2d_t outputResolution;
+    xess_quality_settings_t qualitySetting;
+    uint32_t initFlags;
+    uint32_t creationNodeMask;
+    uint32_t visibleNodeMask;
+    VkDeviceMemory tempBufferHeap;
+    uint64_t bufferHeapOffset;
+    VkDeviceMemory tempTextureHeap;
+    uint64_t textureHeapOffset;
+    VkPipelineCache pipelineCache;
+};
+
+struct xess_vk_init_params32
+{
+    PTR32 hContext;
+    PTR32 pInitParams;
+    xess_result_t result;
+};
+
+struct xess_vk_get_init_params_params32
+{
+    PTR32 hContext;
+    PTR32 pInitParams;
+    xess_result_t result;
+};
+
+struct xess_vk_execute_params32
+{
+    PTR32 hContext;
+    PTR32 pCommandBuffer;
+    PTR32 pExecParams;
+    xess_result_t result;
+};
+
+static NTSTATUS wow64_xess_init( void *args )
+{
+    return xess_init( args );
+}
+
+static NTSTATUS wow64_xess_destroy_context( void *args )
+{
+    struct xess_destroy_context_params32 *params32 = args;
+    struct xess_destroy_context_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+    };
+    NTSTATUS ret;
+
+    ret = xess_destroy_context( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_version( void *args )
+{
+    struct xess_get_version_params32 *params32 = args;
+    struct xess_get_version_params params =
+    {
+        .pVersion = ULongToPtr(params32->pVersion),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_version( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_intel_xefx_version( void *args )
+{
+    struct xess_get_intel_xefx_version_params32 *params32 = args;
+    struct xess_get_intel_xefx_version_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pVersion = ULongToPtr(params32->pVersion),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_intel_xefx_version( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_properties( void *args )
+{
+    struct xess_get_properties_params32 *params32 = args;
+    struct xess_get_properties_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pOutputResolution = ULongToPtr(params32->pOutputResolution),
+        .pProperties = ULongToPtr(params32->pProperties),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_properties( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_input_resolution( void *args )
+{
+    struct xess_get_input_resolution_params32 *params32 = args;
+    struct xess_get_input_resolution_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pOutputResolution = ULongToPtr(params32->pOutputResolution),
+        .qualitySetting = params32->qualitySetting,
+        .pInputResolution = ULongToPtr(params32->pInputResolution),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_input_resolution( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_optimal_input_resolution( void *args )
+{
+    struct xess_get_optimal_input_resolution_params32 *params32 = args;
+    struct xess_get_optimal_input_resolution_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pOutputResolution = ULongToPtr(params32->pOutputResolution),
+        .qualitySetting = params32->qualitySetting,
+        .pMinResolution = ULongToPtr(params32->pMinResolution),
+        .pMaxResolution = ULongToPtr(params32->pMaxResolution),
+        .pOptimalResolution = ULongToPtr(params32->pOptimalResolution),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_optimal_input_resolution( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_jitter_scale( void *args )
+{
+    struct xess_get_jitter_scale_params32 *params32 = args;
+    struct xess_get_jitter_scale_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pX = ULongToPtr(params32->pX),
+        .pY = ULongToPtr(params32->pY),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_jitter_scale( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_velocity_scale( void *args )
+{
+    struct xess_get_velocity_scale_params32 *params32 = args;
+    struct xess_get_velocity_scale_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pX = ULongToPtr(params32->pX),
+        .pY = ULongToPtr(params32->pY),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_velocity_scale( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_exposure_multiplier( void *args )
+{
+    struct xess_get_exposure_multiplier_params32 *params32 = args;
+    struct xess_get_exposure_multiplier_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pScale = ULongToPtr(params32->pScale),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_exposure_multiplier( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_max_responsive_mask_value( void *args )
+{
+    struct xess_get_max_responsive_mask_value_params32 *params32 = args;
+    struct xess_get_max_responsive_mask_value_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pMaxValue = ULongToPtr(params32->pMaxValue),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_max_responsive_mask_value( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_set_velocity_scale( void *args )
+{
+    struct xess_set_velocity_scale_params32 *params32 = args;
+    struct xess_set_velocity_scale_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .x = params32->x,
+        .y = params32->y,
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_velocity_scale( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_set_jitter_scale( void *args )
+{
+    struct xess_set_jitter_scale_params32 *params32 = args;
+    struct xess_set_jitter_scale_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .x = params32->x,
+        .y = params32->y,
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_jitter_scale( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_set_exposure_multiplier( void *args )
+{
+    struct xess_set_exposure_multiplier_params32 *params32 = args;
+    struct xess_set_exposure_multiplier_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .scale = params32->scale,
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_exposure_multiplier( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_set_max_responsive_mask_value( void *args )
+{
+    struct xess_set_max_responsive_mask_value_params32 *params32 = args;
+    struct xess_set_max_responsive_mask_value_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .maxValue = params32->maxValue,
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_max_responsive_mask_value( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_set_logging_callback( void *args )
+{
+    struct xess_set_logging_callback_params32 *params32 = args;
+    struct xess_set_logging_callback_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .loggingLevel = params32->loggingLevel,
+        .loggingFunction = ULongToPtr(params32->loggingFunction),
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_logging_callback( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_is_optimal_driver( void *args )
+{
+    struct xess_is_optimal_driver_params32 *params32 = args;
+    struct xess_is_optimal_driver_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+    };
+    NTSTATUS ret;
+
+    ret = xess_is_optimal_driver( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_force_legacy_scale_factors( void *args )
+{
+    struct xess_force_legacy_scale_factors_params32 *params32 = args;
+    struct xess_force_legacy_scale_factors_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .force = params32->force,
+    };
+    NTSTATUS ret;
+
+    ret = xess_force_legacy_scale_factors( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_pipeline_build_status( void *args )
+{
+    struct xess_get_pipeline_build_status_params32 *params32 = args;
+    struct xess_get_pipeline_build_status_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_pipeline_build_status( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_select_network_model( void *args )
+{
+    struct xess_select_network_model_params32 *params32 = args;
+    struct xess_select_network_model_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .network = params32->network,
+    };
+    NTSTATUS ret;
+
+    ret = xess_select_network_model( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_start_dump( void *args )
+{
+    struct xess_start_dump_params32 *params32 = args;
+    const struct xess_dump_parameters_t32 *dump_params32 = ULongToPtr(params32->dump_parameters);
+    xess_dump_parameters_t dump_params;
+    struct xess_start_dump_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .dump_parameters = NULL,
+    };
+    NTSTATUS ret;
+
+    if (dump_params32)
+    {
+        dump_params.path = ULongToPtr(dump_params32->path);
+        dump_params.frame_idx = dump_params32->frame_idx;
+        dump_params.frame_count = dump_params32->frame_count;
+        dump_params.dump_elements_mask = dump_params32->dump_elements_mask;
+        params.dump_parameters = &dump_params;
+    }
+
+    ret = xess_start_dump( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_profiling_data( void *args )
+{
+    struct xess_get_profiling_data_params32 *params32 = args;
+    xess_profiling_data_t *profiling_data;
+    struct xess_get_profiling_data_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pProfilingData = &profiling_data,
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_profiling_data( &params );
+    if (!ret)
+    {
+        if (ULongToPtr(params32->pProfilingData))
+            *(PTR32 *)ULongToPtr(params32->pProfilingData) = PtrToUlong(profiling_data);
+    }
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_get_required_instance_extensions( void *args )
+{
+    struct xess_vk_get_required_instance_extensions_params32 *params32 = args;
+    struct xess_vk_get_required_instance_extensions_params params =
+    {
+        .instanceExtensionsCount = ULongToPtr(params32->instanceExtensionsCount),
+        .instanceExtensions = ULongToPtr(params32->instanceExtensions),
+        .minVkApiVersion = ULongToPtr(params32->minVkApiVersion),
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_get_required_instance_extensions( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_get_required_device_extensions( void *args )
+{
+    struct xess_vk_get_required_device_extensions_params32 *params32 = args;
+    struct xess_vk_get_required_device_extensions_params params =
+    {
+        .instance = ULongToPtr(params32->instance),
+        .physicalDevice = ULongToPtr(params32->physicalDevice),
+        .deviceExtensionsCount = ULongToPtr(params32->deviceExtensionsCount),
+        .deviceExtensions = ULongToPtr(params32->deviceExtensions),
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_get_required_device_extensions( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_get_required_device_features( void *args )
+{
+    struct xess_vk_get_required_device_features_params32 *params32 = args;
+    struct xess_vk_get_required_device_features_params params =
+    {
+        .instance = ULongToPtr(params32->instance),
+        .physicalDevice = ULongToPtr(params32->physicalDevice),
+        .features = ULongToPtr(params32->features),
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_get_required_device_features( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_create_context( void *args )
+{
+    struct xess_vk_create_context_params32 *params32 = args;
+    struct xess_vk_create_context_params params =
+    {
+        .instance = ULongToPtr(params32->instance),
+        .physicalDevice = ULongToPtr(params32->physicalDevice),
+        .device = ULongToPtr(params32->device),
+        .phContext = ULongToPtr(params32->phContext),
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_create_context( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_build_pipelines( void *args )
+{
+    struct
+    {
+        PTR32 hContext;
+        VkPipelineCache pipelineCache;
+        bool blocking;
+        uint32_t initFlags;
+        xess_result_t result;
+    } *params32 = args;
+    struct xess_vk_build_pipelines_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pipelineCache = params32->pipelineCache,
+        .blocking = params32->blocking,
+        .initFlags = params32->initFlags,
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_build_pipelines( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_init( void *args )
+{
+    struct xess_vk_init_params32 *params32 = args;
+    const struct xess_vk_init_params_t32 *init_params32 = ULongToPtr(params32->pInitParams);
+    xess_vk_init_params_t init_params;
+    struct xess_vk_init_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pInitParams = NULL,
+    };
+    NTSTATUS ret;
+
+    if (init_params32)
+    {
+        init_params.outputResolution = init_params32->outputResolution;
+        init_params.qualitySetting = init_params32->qualitySetting;
+        init_params.initFlags = init_params32->initFlags;
+        init_params.creationNodeMask = init_params32->creationNodeMask;
+        init_params.visibleNodeMask = init_params32->visibleNodeMask;
+        init_params.tempBufferHeap = init_params32->tempBufferHeap;
+        init_params.bufferHeapOffset = init_params32->bufferHeapOffset;
+        init_params.tempTextureHeap = init_params32->tempTextureHeap;
+        init_params.textureHeapOffset = init_params32->textureHeapOffset;
+        init_params.pipelineCache = init_params32->pipelineCache;
+        params.pInitParams = &init_params;
+    }
+
+    ret = xess_vk_init( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_get_init_params( void *args )
+{
+    struct xess_vk_get_init_params_params32 *params32 = args;
+    struct xess_vk_init_params_t32 *init_params32 = ULongToPtr(params32->pInitParams);
+    xess_vk_init_params_t init_params;
+    struct xess_vk_get_init_params_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pInitParams = init_params32 ? &init_params : NULL,
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_get_init_params( &params );
+    if (!ret && init_params32)
+    {
+        init_params32->outputResolution = init_params.outputResolution;
+        init_params32->qualitySetting = init_params.qualitySetting;
+        init_params32->initFlags = init_params.initFlags;
+        init_params32->creationNodeMask = init_params.creationNodeMask;
+        init_params32->visibleNodeMask = init_params.visibleNodeMask;
+        init_params32->tempBufferHeap = init_params.tempBufferHeap;
+        init_params32->bufferHeapOffset = init_params.bufferHeapOffset;
+        init_params32->tempTextureHeap = init_params.tempTextureHeap;
+        init_params32->textureHeapOffset = init_params.textureHeapOffset;
+        init_params32->pipelineCache = init_params.pipelineCache;
+    }
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_vk_execute( void *args )
+{
+    struct xess_vk_execute_params32 *params32 = args;
+    struct xess_vk_execute_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .pCommandBuffer = ULongToPtr(params32->pCommandBuffer),
+        .pExecParams = ULongToPtr(params32->pExecParams),
+    };
+    NTSTATUS ret;
+
+    ret = xess_vk_execute( &params );
+    params32->result = params.result;
+    return ret;
+}
 
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 {
