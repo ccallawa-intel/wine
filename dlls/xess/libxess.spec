@@ -14,6 +14,8 @@
 @ cdecl xessSetJitterScale(ptr float float)
 @ cdecl xessSetExposureMultiplier(ptr float)
 @ cdecl xessSetMaxResponsiveMaskValue(ptr float)
+@ cdecl xessSetContextParameterF(ptr long float)
+@ cdecl xessGetContextParameterP(ptr long long ptr)
 @ cdecl xessGetPipelineBuildStatus(ptr)
 @ cdecl xessForceLegacyScaleFactors(ptr long)
 @ cdecl xessVKGetRequiredInstanceExtensions(ptr ptr ptr)

@@ -29,6 +29,9 @@
 
 const char* xess_result_to_string(xess_result_t result);
 
+XESS_API xess_result_t xessSetContextParameterF(xess_context_handle_t hContext, uint32_t param, float value);
+XESS_API xess_result_t xessGetContextParameterP(xess_context_handle_t hContext, uint32_t param, uint32_t size, void *pValue);
+
 void xess_d3d12_destroy_heap_trackers(xess_context_handle_t hContext);
 void xess_d3d12_destroy_all_heap_trackers(void);
 
