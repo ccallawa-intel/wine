@@ -97,6 +97,8 @@ static xess_result_t (*p_xessSetVelocityScale)(xess_context_handle_t, float, flo
 static xess_result_t (*p_xessSetJitterScale)(xess_context_handle_t, float, float);
 static xess_result_t (*p_xessSetExposureMultiplier)(xess_context_handle_t, float);
 static xess_result_t (*p_xessSetMaxResponsiveMaskValue)(xess_context_handle_t, float);
+static xess_result_t (*p_xessSetContextParameterF)(xess_context_handle_t, uint32_t, float);
+static xess_result_t (*p_xessGetContextParameterP)(xess_context_handle_t, uint32_t, uint32_t, void *);
 static xess_result_t (*p_xessSetLoggingCallback)(xess_context_handle_t, xess_logging_level_t, xess_app_log_callback_t);
 static xess_result_t (*p_xessIsOptimalDriver)(xess_context_handle_t);
 static xess_result_t (*p_xessForceLegacyScaleFactors)(xess_context_handle_t, bool);
@@ -165,6 +167,8 @@ static NTSTATUS xess_init( void *args )
     LOAD_FUNCPTR(xessSetJitterScale)
     LOAD_FUNCPTR(xessSetExposureMultiplier)
     LOAD_FUNCPTR(xessSetMaxResponsiveMaskValue)
+    LOAD_FUNCPTR(xessSetContextParameterF)
+    LOAD_FUNCPTR(xessGetContextParameterP)
     LOAD_FUNCPTR(xessSetLoggingCallback)
     LOAD_FUNCPTR(xessIsOptimalDriver)
     LOAD_FUNCPTR(xessForceLegacyScaleFactors)
@@ -305,6 +309,22 @@ static NTSTATUS xess_set_max_responsive_mask_value( void *args )
     struct xess_set_max_responsive_mask_value_params *params = args;
     if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetMaxResponsiveMaskValue( params->hContext, params->maxValue );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS xess_set_context_parameter_f( void *args )
+{
+    struct xess_set_context_parameter_f_params *params = args;
+    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    params->result = p_xessSetContextParameterF( params->hContext, params->param, params->value );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS xess_get_context_parameter_p( void *args )
+{
+    struct xess_get_context_parameter_p_params *params = args;
+    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    params->result = p_xessGetContextParameterP( params->hContext, params->param, params->size, params->pValue );
     return STATUS_SUCCESS;
 }
 
@@ -459,6 +479,8 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     xess_set_jitter_scale,
     xess_set_exposure_multiplier,
     xess_set_max_responsive_mask_value,
+    xess_set_context_parameter_f,
+    xess_get_context_parameter_p,
     xess_set_logging_callback,
     xess_is_optimal_driver,
     xess_force_legacy_scale_factors,
@@ -584,6 +606,23 @@ struct xess_set_max_responsive_mask_value_params32
 {
     PTR32 hContext;
     float maxValue;
+    xess_result_t result;
+};
+
+struct xess_set_context_parameter_f_params32
+{
+    PTR32 hContext;
+    uint32_t param;
+    float value;
+    xess_result_t result;
+};
+
+struct xess_get_context_parameter_p_params32
+{
+    PTR32 hContext;
+    uint32_t param;
+    uint32_t size;
+    PTR32 pValue;
     xess_result_t result;
 };
 
@@ -937,6 +976,39 @@ static NTSTATUS wow64_xess_set_max_responsive_mask_value( void *args )
     return ret;
 }
 
+static NTSTATUS wow64_xess_set_context_parameter_f( void *args )
+{
+    struct xess_set_context_parameter_f_params32 *params32 = args;
+    struct xess_set_context_parameter_f_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .param = params32->param,
+        .value = params32->value,
+    };
+    NTSTATUS ret;
+
+    ret = xess_set_context_parameter_f( &params );
+    params32->result = params.result;
+    return ret;
+}
+
+static NTSTATUS wow64_xess_get_context_parameter_p( void *args )
+{
+    struct xess_get_context_parameter_p_params32 *params32 = args;
+    struct xess_get_context_parameter_p_params params =
+    {
+        .hContext = ULongToPtr(params32->hContext),
+        .param = params32->param,
+        .size = params32->size,
+        .pValue = ULongToPtr(params32->pValue),
+    };
+    NTSTATUS ret;
+
+    ret = xess_get_context_parameter_p( &params );
+    params32->result = params.result;
+    return ret;
+}
+
 static NTSTATUS wow64_xess_set_logging_callback( void *args )
 {
     struct xess_set_logging_callback_params32 *params32 = args;
@@ -1243,6 +1315,8 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_xess_set_jitter_scale,
     wow64_xess_set_exposure_multiplier,
     wow64_xess_set_max_responsive_mask_value,
+    wow64_xess_set_context_parameter_f,
+    wow64_xess_get_context_parameter_p,
     wow64_xess_set_logging_callback,
     wow64_xess_is_optimal_driver,
     wow64_xess_force_legacy_scale_factors,

@@ -56,6 +56,8 @@ enum xess_funcs
     unix_xessSetJitterScale,
     unix_xessSetExposureMultiplier,
     unix_xessSetMaxResponsiveMaskValue,
+    unix_xessSetContextParameterF,
+    unix_xessGetContextParameterP,
     unix_xessSetLoggingCallback,
     unix_xessIsOptimalDriver,
     unix_xessForceLegacyScaleFactors,
@@ -182,6 +184,23 @@ struct xess_set_max_responsive_mask_value_params
 {
     xess_context_handle_t hContext;
     float maxValue;
+    xess_result_t result;
+};
+
+struct xess_set_context_parameter_f_params
+{
+    xess_context_handle_t hContext;
+    uint32_t param;
+    float value;
+    xess_result_t result;
+};
+
+struct xess_get_context_parameter_p_params
+{
+    xess_context_handle_t hContext;
+    uint32_t param;
+    uint32_t size;
+    void *pValue;
     xess_result_t result;
 };
 
