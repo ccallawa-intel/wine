@@ -22,7 +22,7 @@
 @ cdecl xessVKGetRequiredDeviceExtensions(ptr ptr ptr ptr)
 @ cdecl xessVKGetRequiredDeviceFeatures(ptr ptr ptr)
 @ cdecl xessVKCreateContext(ptr ptr ptr ptr)
-@ cdecl xessVKBuildPipelines(ptr ptr long long)
+@ cdecl xessVKBuildPipelines(ptr int64 long long)
 @ cdecl xessVKInit(ptr ptr)
 @ cdecl xessVKGetInitParams(ptr ptr)
 @ cdecl xessVKExecute(ptr ptr ptr)
