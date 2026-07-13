@@ -52,7 +52,8 @@ static VkImageView get_vk_image_view(VkDevice vk_device, PFN_vkCreateImageView p
     memset(&view_info, 0, sizeof(view_info));
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.image = vk_image;
-    view_info.viewType = (desc->DepthOrArraySize > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+    view_info.viewType = (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? VK_IMAGE_VIEW_TYPE_3D
+        : ((desc->DepthOrArraySize > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D);
     view_info.format = format;
     view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -62,7 +63,7 @@ static VkImageView get_vk_image_view(VkDevice vk_device, PFN_vkCreateImageView p
     view_info.subresourceRange.baseMipLevel = 0;
     view_info.subresourceRange.levelCount = desc->MipLevels;
     view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = desc->DepthOrArraySize;
+    view_info.subresourceRange.layerCount = (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc->DepthOrArraySize;
 
     vk_result = pfn_vkCreateImageView(vk_device, &view_info, NULL, &image_view);
     if (vk_result != VK_SUCCESS)
