@@ -197,10 +197,9 @@ XESS_API xess_result_t xessGetMaxResponsiveMaskValue(xess_context_handle_t hCont
 
 XESS_API xess_result_t xessSetLoggingCallback(xess_context_handle_t hContext, xess_logging_level_t loggingLevel, xess_app_log_callback_t loggingFunction)
 {
-    struct xess_set_logging_callback_params params = { hContext, loggingLevel, loggingFunction };
     TRACE("(%p, %d, %p)\n", hContext, loggingLevel, loggingFunction);
-    XESS_WINE_UNIX_CALL(unix_xessSetLoggingCallback, &params);
-    return params.result;
+    // There is no known Wine mechanism to handle callbacks from the Unix side to the Windows side, so this function is not implemented.
+    return XESS_RESULT_ERROR_NOT_IMPLEMENTED;
 }
 
 XESS_API xess_result_t xessIsOptimalDriver(xess_context_handle_t hContext)
