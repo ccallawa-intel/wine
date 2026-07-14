@@ -151,7 +151,7 @@ static xess_result_t translate_texture_resource(
     pTextureInfo->subresourceRange.baseMipLevel = 0;
     pTextureInfo->subresourceRange.levelCount = mip_level_count;
     pTextureInfo->subresourceRange.baseArrayLayer = 0;
-    pTextureInfo->subresourceRange.layerCount = desc.DepthOrArraySize;
+    pTextureInfo->subresourceRange.layerCount = (desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc.DepthOrArraySize;
 
     /* Create VkImageView */
     *pImageView = get_vk_image_view(vk_device, pfn_vkCreateImageView,
