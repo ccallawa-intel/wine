@@ -398,7 +398,7 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
 {
     xess_result_t result;
     xess_vk_init_params_t vk_init_params;
-    struct xess_vk_get_init_params_params unix_params;
+    struct xess_vk_init_params unix_params;
     uint64_t buffer_heap_base_offset = 0;
     uint64_t texture_heap_base_offset = 0;
     NTSTATUS status;
