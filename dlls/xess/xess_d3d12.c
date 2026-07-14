@@ -130,6 +130,11 @@ static xess_result_t translate_texture_resource(
     }
 
     desc = ID3D12Resource_GetDesc(pTexture);
+    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+    {
+        WARN("%s resource is a buffer, expected a texture.\n", texture_name);
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+    }
     mip_level_count = get_mip_level_count_from_desc(&desc);
     TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
           texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
