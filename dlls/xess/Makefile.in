@@ -3,7 +3,6 @@ IMPORTS   = dxgi d3d12 ntdll winevulkan
 UNIXLIB   = libxess.so
 
 EXTRADLLFLAGS = -mno-cygwin
-EXTRADEFS = -DXESS_SHARED_LIB -DXESS_EXPORT_API
 EXTRAINCL = $(VKD3D_PE_CFLAGS)
 
 SOURCES = \
