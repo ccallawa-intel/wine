@@ -555,6 +555,13 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     if (!pCommandList || !pExecParams || !pExecParams->pColorTexture || !pExecParams->pVelocityTexture || !pExecParams->pOutputTexture)
         return XESS_RESULT_ERROR_INVALID_ARGUMENT;
 
+    // no support for external descriptor heaps at this time
+    if (pExecParams->pDescriptorHeap || pExecParams->descriptorHeapOffset)
+    {
+        WARN("External descriptor heap parameters are not supported.\n");
+        return XESS_RESULT_ERROR_NOT_IMPLEMENTED;
+    }
+
     memset(&vk_exec_params, 0, sizeof(vk_exec_params));
     memset(&unix_params, 0, sizeof(unix_params));
 
