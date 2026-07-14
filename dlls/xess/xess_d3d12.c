@@ -42,8 +42,29 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(xess);
 
+static UINT get_mip_level_count_from_desc(const D3D12_RESOURCE_DESC *desc)
+{
+    // ref: https://github.com/microsoft/DirectXTex/wiki/CalculateMipLevels/6b633fd8fe916225d4a7ece15c3c40c2eb6da163
+    // "The maximum number of mipmap levels is calculated by repeatedly halving each dimension
+    // (width, height, and depth for 3D) until at least one dimension reaches 1 pixel.
+    // The total number of levels includes the original base level plus all reduced levels."
+    UINT64 w = desc->Width;
+    UINT32 h = desc->Height;
+    UINT32 d = (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? desc->DepthOrArraySize : 1;
+    UINT16 mips = 1;
+    while (w > 1 || h > 1 || d > 1)
+    {
+        if (w > 1) w >>= 1;
+        if (h > 1) h >>= 1;
+        if (d > 1) d >>= 1;
+        ++mips;
+    }
+    return mips;
+}
+
 static VkImageView get_vk_image_view(VkDevice vk_device, PFN_vkCreateImageView pfn_vkCreateImageView,
-    VkImage vk_image, VkFormat format, const D3D12_RESOURCE_DESC *desc, VkImageAspectFlags aspect_mask)
+    VkImage vk_image, VkFormat format, const D3D12_RESOURCE_DESC *desc,
+    VkImageAspectFlags aspect_mask, UINT mip_level_count)
 {
     VkImageViewCreateInfo view_info;
     VkImageView image_view = VK_NULL_HANDLE;
@@ -61,7 +82,7 @@ static VkImageView get_vk_image_view(VkDevice vk_device, PFN_vkCreateImageView p
     view_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
     view_info.subresourceRange.aspectMask = aspect_mask;
     view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = desc->MipLevels;
+    view_info.subresourceRange.levelCount = mip_level_count;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount = (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc->DepthOrArraySize;
 
@@ -85,6 +106,7 @@ static xess_result_t translate_texture_resource(
     const char *texture_name)
 {
     D3D12_RESOURCE_DESC desc;
+    UINT mip_level_count;
     UINT64 vk_handle;
     UINT64 buffer_offset;
     HRESULT hr;
@@ -102,8 +124,11 @@ static xess_result_t translate_texture_resource(
     }
 
     desc = ID3D12Resource_GetDesc(pTexture);
+    mip_level_count = get_mip_level_count_from_desc(&desc);
     TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
           texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
+    TRACE("%s texture: computed mip_level_count=%u\n",
+          texture_name, mip_level_count);
     if (pTextureInfo->format == VK_FORMAT_D16_UNORM || pTextureInfo->format == VK_FORMAT_X8_D24_UNORM_PACK32 ||
         pTextureInfo->format == VK_FORMAT_D32_SFLOAT || pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT ||
         pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
@@ -119,13 +144,13 @@ static xess_result_t translate_texture_resource(
     pTextureInfo->height = desc.Height;
     pTextureInfo->subresourceRange.aspectMask = aspect_mask;
     pTextureInfo->subresourceRange.baseMipLevel = 0;
-    pTextureInfo->subresourceRange.levelCount = desc.MipLevels;
+    pTextureInfo->subresourceRange.levelCount = mip_level_count;
     pTextureInfo->subresourceRange.baseArrayLayer = 0;
     pTextureInfo->subresourceRange.layerCount = desc.DepthOrArraySize;
 
     /* Create VkImageView */
     *pImageView = get_vk_image_view(vk_device, pfn_vkCreateImageView,
-        pTextureInfo->image, pTextureInfo->format, &desc, aspect_mask);
+        pTextureInfo->image, pTextureInfo->format, &desc, aspect_mask, mip_level_count);
     if (*pImageView == VK_NULL_HANDLE)
     {
         WARN("Failed to create %s texture image view\n", texture_name);
