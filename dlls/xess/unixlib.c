@@ -81,7 +81,7 @@ static VkDeviceMemory get_host_device_memory(VkDeviceMemory wine_device_memory)
     return device_memory->host.device_memory;
 }
 
-static void *vulkan_library = NULL;
+static void *override_library = NULL;
 
 static xess_result_t (*p_xessDestroyContext)(xess_context_handle_t);
 static xess_result_t (*p_xessGetVersion)(xess_version_t *);
@@ -119,34 +119,35 @@ static xess_result_t (*p_xessVKExecute)(xess_context_handle_t, VkCommandBuffer, 
 static NTSTATUS xess_init( void *args )
 {
     struct xess_init_params *params = args;
-    const char *xess_vulkan_lib;
+    const char *xess_lib_path;
 
     TRACE("Initializing XeSS translation...\n");
 
-    if (vulkan_library)
+    if (override_library)
     {
         params->result = XESS_RESULT_SUCCESS;
         return STATUS_SUCCESS;
     }
 
-    /* Allow user to specify custom Vulkan XeSS implementation */
-    xess_vulkan_lib = getenv("XESS_VULKAN_LIB");
-    if (!xess_vulkan_lib)
-        xess_vulkan_lib = "libxess_vulkan.so";
+    /* Allow user to specify a custom XeSS implementation */
+    xess_lib_path = getenv("XESS_LIB_OVERRIDE");
+    if (!xess_lib_path)
+        // default path of "libxess.so" would clash with the Unixlib name
+        xess_lib_path = "libxess_override.so";
 
-    TRACE("Loading Vulkan XeSS implementation: %s\n", xess_vulkan_lib);
+    TRACE("Loading XeSS implementation: %s\n", xess_lib_path);
 
-    vulkan_library = dlopen(xess_vulkan_lib, RTLD_NOW);
-    if (!vulkan_library)
+    override_library = dlopen(xess_lib_path, RTLD_NOW);
+    if (!override_library)
     {
-        ERR_(winediag)("Failed to load Vulkan XeSS library '%s': %s\n", xess_vulkan_lib, dlerror());
-        ERR_(winediag)("Please set XESS_VULKAN_LIB environment variable or install libxess_vulkan.so\n");
+        ERR_(winediag)("Failed to load XeSS library '%s': %s\n", xess_lib_path, dlerror());
+        ERR_(winediag)("Please set XESS_LIB_OVERRIDE environment variable or install libxess_override.so\n");
         params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
         return STATUS_SUCCESS;
     }
 
 #define LOAD_FUNCPTR(f) \
-    if (!(p_##f = dlsym( vulkan_library, #f ))) \
+    if (!(p_##f = dlsym( override_library, #f ))) \
     { \
         ERR("Failed to load function '%s': %s\n", #f, dlerror()); \
         goto fail; \
@@ -193,8 +194,8 @@ static NTSTATUS xess_init( void *args )
     return STATUS_SUCCESS;
 
 fail:
-    dlclose(vulkan_library);
-    vulkan_library = NULL;
+    dlclose(override_library);
+    override_library = NULL;
     params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
     return STATUS_SUCCESS;
 }
@@ -202,7 +203,7 @@ fail:
 static NTSTATUS xess_destroy_context( void *args )
 {
     struct xess_destroy_context_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessDestroyContext( params->hContext );
     return STATUS_SUCCESS;
 }
@@ -210,7 +211,7 @@ static NTSTATUS xess_destroy_context( void *args )
 static NTSTATUS xess_get_version( void *args )
 {
     struct xess_get_version_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetVersion( params->pVersion );
     return STATUS_SUCCESS;
 }
@@ -218,7 +219,7 @@ static NTSTATUS xess_get_version( void *args )
 static NTSTATUS xess_get_intel_xefx_version( void *args )
 {
     struct xess_get_intel_xefx_version_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetIntelXeFXVersion( params->hContext, params->pVersion );
     return STATUS_SUCCESS;
 }
@@ -226,7 +227,7 @@ static NTSTATUS xess_get_intel_xefx_version( void *args )
 static NTSTATUS xess_get_properties( void *args )
 {
     struct xess_get_properties_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetProperties( params->hContext, params->pOutputResolution, params->pProperties );
     return STATUS_SUCCESS;
 }
@@ -234,7 +235,7 @@ static NTSTATUS xess_get_properties( void *args )
 static NTSTATUS xess_get_input_resolution( void *args )
 {
     struct xess_get_input_resolution_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetInputResolution( params->hContext, params->pOutputResolution, params->qualitySetting, params->pInputResolution );
     return STATUS_SUCCESS;
 }
@@ -242,7 +243,7 @@ static NTSTATUS xess_get_input_resolution( void *args )
 static NTSTATUS xess_get_optimal_input_resolution( void *args )
 {
     struct xess_get_optimal_input_resolution_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetOptimalInputResolution( params->hContext, params->pOutputResolution, params->qualitySetting,
                                                        params->pMinResolution, params->pMaxResolution, params->pOptimalResolution );
     return STATUS_SUCCESS;
@@ -251,7 +252,7 @@ static NTSTATUS xess_get_optimal_input_resolution( void *args )
 static NTSTATUS xess_get_jitter_scale( void *args )
 {
     struct xess_get_jitter_scale_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetJitterScale( params->hContext, params->pX, params->pY );
     return STATUS_SUCCESS;
 }
@@ -259,7 +260,7 @@ static NTSTATUS xess_get_jitter_scale( void *args )
 static NTSTATUS xess_get_velocity_scale( void *args )
 {
     struct xess_get_velocity_scale_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetVelocityScale( params->hContext, params->pX, params->pY );
     return STATUS_SUCCESS;
 }
@@ -267,7 +268,7 @@ static NTSTATUS xess_get_velocity_scale( void *args )
 static NTSTATUS xess_get_exposure_multiplier( void *args )
 {
     struct xess_get_exposure_multiplier_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetExposureMultiplier( params->hContext, params->pScale );
     return STATUS_SUCCESS;
 }
@@ -275,7 +276,7 @@ static NTSTATUS xess_get_exposure_multiplier( void *args )
 static NTSTATUS xess_get_max_responsive_mask_value( void *args )
 {
     struct xess_get_max_responsive_mask_value_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetMaxResponsiveMaskValue( params->hContext, params->pMaxValue );
     return STATUS_SUCCESS;
 }
@@ -283,7 +284,7 @@ static NTSTATUS xess_get_max_responsive_mask_value( void *args )
 static NTSTATUS xess_set_velocity_scale( void *args )
 {
     struct xess_set_velocity_scale_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetVelocityScale( params->hContext, params->x, params->y );
     return STATUS_SUCCESS;
 }
@@ -291,7 +292,7 @@ static NTSTATUS xess_set_velocity_scale( void *args )
 static NTSTATUS xess_set_jitter_scale( void *args )
 {
     struct xess_set_jitter_scale_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetJitterScale( params->hContext, params->x, params->y );
     return STATUS_SUCCESS;
 }
@@ -299,7 +300,7 @@ static NTSTATUS xess_set_jitter_scale( void *args )
 static NTSTATUS xess_set_exposure_multiplier( void *args )
 {
     struct xess_set_exposure_multiplier_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetExposureMultiplier( params->hContext, params->scale );
     return STATUS_SUCCESS;
 }
@@ -307,7 +308,7 @@ static NTSTATUS xess_set_exposure_multiplier( void *args )
 static NTSTATUS xess_set_max_responsive_mask_value( void *args )
 {
     struct xess_set_max_responsive_mask_value_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetMaxResponsiveMaskValue( params->hContext, params->maxValue );
     return STATUS_SUCCESS;
 }
@@ -315,7 +316,7 @@ static NTSTATUS xess_set_max_responsive_mask_value( void *args )
 static NTSTATUS xess_set_context_parameter_f( void *args )
 {
     struct xess_set_context_parameter_f_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetContextParameterF( params->hContext, params->param, params->value );
     return STATUS_SUCCESS;
 }
@@ -323,7 +324,7 @@ static NTSTATUS xess_set_context_parameter_f( void *args )
 static NTSTATUS xess_get_context_parameter_p( void *args )
 {
     struct xess_get_context_parameter_p_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetContextParameterP( params->hContext, params->param, params->size, params->pValue );
     return STATUS_SUCCESS;
 }
@@ -331,7 +332,7 @@ static NTSTATUS xess_get_context_parameter_p( void *args )
 static NTSTATUS xess_set_logging_callback( void *args )
 {
     struct xess_set_logging_callback_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSetLoggingCallback( params->hContext, params->loggingLevel, params->loggingFunction );
     return STATUS_SUCCESS;
 }
@@ -339,7 +340,7 @@ static NTSTATUS xess_set_logging_callback( void *args )
 static NTSTATUS xess_is_optimal_driver( void *args )
 {
     struct xess_is_optimal_driver_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessIsOptimalDriver( params->hContext );
     return STATUS_SUCCESS;
 }
@@ -347,7 +348,7 @@ static NTSTATUS xess_is_optimal_driver( void *args )
 static NTSTATUS xess_force_legacy_scale_factors( void *args )
 {
     struct xess_force_legacy_scale_factors_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessForceLegacyScaleFactors( params->hContext, params->force );
     return STATUS_SUCCESS;
 }
@@ -355,7 +356,7 @@ static NTSTATUS xess_force_legacy_scale_factors( void *args )
 static NTSTATUS xess_get_pipeline_build_status( void *args )
 {
     struct xess_get_pipeline_build_status_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetPipelineBuildStatus( params->hContext );
     return STATUS_SUCCESS;
 }
@@ -363,7 +364,7 @@ static NTSTATUS xess_get_pipeline_build_status( void *args )
 static NTSTATUS xess_select_network_model( void *args )
 {
     struct xess_select_network_model_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessSelectNetworkModel( params->hContext, params->network );
     return STATUS_SUCCESS;
 }
@@ -371,7 +372,7 @@ static NTSTATUS xess_select_network_model( void *args )
 static NTSTATUS xess_start_dump( void *args )
 {
     struct xess_start_dump_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessStartDump( params->hContext, params->dump_parameters );
     return STATUS_SUCCESS;
 }
@@ -379,7 +380,7 @@ static NTSTATUS xess_start_dump( void *args )
 static NTSTATUS xess_get_profiling_data( void *args )
 {
     struct xess_get_profiling_data_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessGetProfilingData( params->hContext, params->pProfilingData );
     return STATUS_SUCCESS;
 }
@@ -387,7 +388,7 @@ static NTSTATUS xess_get_profiling_data( void *args )
 static NTSTATUS xess_vk_get_required_instance_extensions( void *args )
 {
     struct xess_vk_get_required_instance_extensions_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKGetRequiredInstanceExtensions( params->instanceExtensionsCount, params->instanceExtensions, params->minVkApiVersion );
     return STATUS_SUCCESS;
 }
@@ -395,7 +396,7 @@ static NTSTATUS xess_vk_get_required_instance_extensions( void *args )
 static NTSTATUS xess_vk_get_required_device_extensions( void *args )
 {
     struct xess_vk_get_required_device_extensions_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKGetRequiredDeviceExtensions( get_host_instance(params->instance), get_host_physical_device(params->physicalDevice), params->deviceExtensionsCount, params->deviceExtensions );
     return STATUS_SUCCESS;
 }
@@ -403,7 +404,7 @@ static NTSTATUS xess_vk_get_required_device_extensions( void *args )
 static NTSTATUS xess_vk_get_required_device_features( void *args )
 {
     struct xess_vk_get_required_device_features_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKGetRequiredDeviceFeatures( get_host_instance(params->instance), get_host_physical_device(params->physicalDevice), params->features );
     return STATUS_SUCCESS;
 }
@@ -411,7 +412,7 @@ static NTSTATUS xess_vk_get_required_device_features( void *args )
 static NTSTATUS xess_vk_create_context( void *args )
 {
     struct xess_vk_create_context_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKCreateContext( get_host_instance(params->instance), get_host_physical_device(params->physicalDevice), get_host_device(params->device), params->phContext );
     return STATUS_SUCCESS;
 }
@@ -419,7 +420,7 @@ static NTSTATUS xess_vk_create_context( void *args )
 static NTSTATUS xess_vk_build_pipelines( void *args )
 {
     struct xess_vk_build_pipelines_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKBuildPipelines( params->hContext, params->pipelineCache, params->blocking, params->initFlags );
     return STATUS_SUCCESS;
 }
@@ -430,7 +431,7 @@ static NTSTATUS xess_vk_init( void *args )
     const xess_vk_init_params_t *init_params;
     xess_vk_init_params_t host_init_params;
 
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
 
     init_params = params->pInitParams;
     if (init_params)
@@ -448,7 +449,7 @@ static NTSTATUS xess_vk_init( void *args )
 static NTSTATUS xess_vk_get_init_params( void *args )
 {
     struct xess_vk_get_init_params_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKGetInitParams( params->hContext, params->pInitParams );
     return STATUS_SUCCESS;
 }
@@ -456,7 +457,7 @@ static NTSTATUS xess_vk_get_init_params( void *args )
 static NTSTATUS xess_vk_execute( void *args )
 {
     struct xess_vk_execute_params *params = args;
-    if (!vulkan_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
+    if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKExecute( params->hContext, get_host_command_buffer(params->pCommandBuffer), params->pExecParams );
     return STATUS_SUCCESS;
 }
