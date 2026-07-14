@@ -427,8 +427,16 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
     if (result != XESS_RESULT_SUCCESS)
         return result;
 
-    vk_init_params.bufferHeapOffset = pInitParams->bufferHeapOffset + buffer_heap_base_offset;
-    vk_init_params.textureHeapOffset = pInitParams->textureHeapOffset + texture_heap_base_offset;
+    if (vk_init_params.tempBufferHeap != VK_NULL_HANDLE)
+        vk_init_params.bufferHeapOffset = pInitParams->bufferHeapOffset + buffer_heap_base_offset;
+    else
+        vk_init_params.bufferHeapOffset = 0;
+
+    if (vk_init_params.tempTextureHeap != VK_NULL_HANDLE)
+        vk_init_params.textureHeapOffset = pInitParams->textureHeapOffset + texture_heap_base_offset;
+    else
+        vk_init_params.textureHeapOffset = 0;
+
     vk_init_params.pipelineCache = VK_NULL_HANDLE; // pipelines are optional and hard to implement
 
     memset(&unix_params, 0, sizeof(unix_params));
