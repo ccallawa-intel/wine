@@ -145,8 +145,8 @@ static xess_result_t translate_texture_resource(
     }
 
     pTextureInfo->image = (VkImage)vk_handle;
-    pTextureInfo->width = desc.Width;
-    pTextureInfo->height = desc.Height;
+    pTextureInfo->width = (unsigned int)desc.Width;
+    pTextureInfo->height = (unsigned int)desc.Height;
     pTextureInfo->subresourceRange.aspectMask = aspect_mask;
     pTextureInfo->subresourceRange.baseMipLevel = 0;
     pTextureInfo->subresourceRange.levelCount = mip_level_count;
