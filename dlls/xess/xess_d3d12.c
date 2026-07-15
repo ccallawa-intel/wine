@@ -44,7 +44,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(xess);
 
 static UINT get_mip_level_count_from_desc(const D3D12_RESOURCE_DESC *desc)
 {
-    // D3D12 allows creating textures with MipLevels=0 (meaning “full mip chain”)
+    // D3D12 allows creating textures with MipLevels=0 (meaning "full mip chain")
     // If MipLevels is 0, the number of mip levels is calculated based on the dimensions of the resource.
     // ref: https://github.com/microsoft/DirectXTex/wiki/CalculateMipLevels/6b633fd8fe916225d4a7ece15c3c40c2eb6da163
     // "The maximum number of mipmap levels is calculated by repeatedly halving each dimension
