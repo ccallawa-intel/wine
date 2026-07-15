@@ -125,7 +125,7 @@ static xess_result_t translate_texture_resource(
     (void)buffer_offset; // not used for textures
     if (FAILED(hr))
     {
-        WARN("Failed to get %s texture info: %lx\n", texture_name, hr);
+        WARN("Failed to get %s texture info: %#lx\n", texture_name, hr);
         return XESS_RESULT_ERROR_UNKNOWN;
     }
 
@@ -569,7 +569,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     hr = ID3D12GraphicsCommandList_GetDevice(pCommandList, &IID_ID3D12Device, (void**)&pDevice);
     if (FAILED(hr))
     {
-        WARN("Failed to get ID3D12Device from command list: %lx\n", hr);
+        WARN("Failed to get ID3D12Device from command list: %#lx\n", hr);
         return XESS_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
@@ -577,7 +577,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     hr = ID3D12Device_QueryInterface(pDevice, &IID_ID3D12DXVKInteropDevice3, (void**)&interop);
     if (FAILED(hr))
     {
-        WARN("Failed to get ID3D12DXVKInteropDevice interface: %lx\n", hr);
+        WARN("Failed to get ID3D12DXVKInteropDevice interface: %#lx\n", hr);
         ID3D12Device_Release(pDevice);
         return XESS_RESULT_ERROR_UNSUPPORTED;
     }
@@ -588,7 +588,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     hr = ID3D12DXVKInteropDevice3_GetVulkanHandles(interop, &vk_instance, &vk_physical_device, &vk_device);
     if (FAILED(hr))
     {
-        WARN("Failed to get Vulkan handles: %lx\n", hr);
+        WARN("Failed to get Vulkan handles: %#lx\n", hr);
         ID3D12DXVKInteropDevice3_Release(interop);
         ID3D12Device_Release(pDevice);
         return XESS_RESULT_ERROR_UNSUPPORTED;
@@ -613,7 +613,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     hr = ID3D12DXVKInteropDevice3_BeginVkCommandBufferInterop(interop, (ID3D12CommandList*)pCommandList, &vk_command_buffer);
     if (FAILED(hr))
     {
-        WARN("Failed to get VkCommandBuffer: %lx\n", hr);
+        WARN("Failed to get VkCommandBuffer: %#lx\n", hr);
         ID3D12DXVKInteropDevice3_Release(interop);
         ID3D12Device_Release(pDevice);
         return XESS_RESULT_ERROR_UNKNOWN;
