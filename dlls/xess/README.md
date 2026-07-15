@@ -4,7 +4,7 @@ This implementation provides a Wine wrapper for Intel's XeSS (Xe Super Sampling)
 
 ## Overview
 
-XeSS is Intel's AI-based temporal super sampling and anti-aliasing technology. This Wine DLL intercepts XeSS API calls from Windows games and redirects them to a alternate implementation.
+XeSS is Intel's AI-based temporal super sampling and anti-aliasing technology. This Wine DLL intercepts XeSS API calls from Windows games and redirects them to an alternate implementation.
 
 ## Rationale
 
@@ -25,7 +25,7 @@ An XeSS shared object implementation. Set the path using an environment variable
 export XESS_LIB_OVERRIDE=/path/to/libxess.so
 ```
 
-If not set, the wrapper will look for `libxess.so` in the library search path.
+If not set, the wrapper will look for `libxess_override.so` in the library search path.
 
 ### Running Games
 
