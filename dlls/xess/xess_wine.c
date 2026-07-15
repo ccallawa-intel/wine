@@ -55,6 +55,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
             TRACE("XeSS Unix library initialized successfully\n");
         break;
     case DLL_PROCESS_DETACH:
+        if (reserved) break; // process is terminating, no need to clean up
         xess_d3d12_destroy_all_heap_trackers();
         break;
     }
