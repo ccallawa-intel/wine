@@ -644,7 +644,9 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
         pInitParams->textureHeapOffset = 0;
     }
 
-    pInitParams->pPipelineLibrary = NULL; // pipelines are optional and hard to implement
+    // pipeline libraries are optional and hard to translate
+    // we use an internal VkPipelineCache instead.
+    pInitParams->pPipelineLibrary = NULL;
 
     return XESS_RESULT_SUCCESS;
 }
