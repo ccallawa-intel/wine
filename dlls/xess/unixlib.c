@@ -1170,7 +1170,8 @@ static NTSTATUS wow64_xess_start_dump( void *args )
 static NTSTATUS wow64_xess_get_profiling_data( void *args )
 {
     struct xess_get_profiling_data_params32 *params32 = args;
-    xess_profiling_data_t *profiling_data;
+    xess_profiling_data_t *profiling_data = NULL;
+    PTR32 *profiling_data_out = ULongToPtr(params32->pProfilingData);
     struct xess_get_profiling_data_params params =
     {
         .hContext = ULongToPtr(params32->hContext),
@@ -1179,10 +1180,17 @@ static NTSTATUS wow64_xess_get_profiling_data( void *args )
     NTSTATUS ret;
 
     ret = xess_get_profiling_data( &params );
-    if (!ret)
+    if (ret == STATUS_SUCCESS && params.result >= XESS_RESULT_SUCCESS && profiling_data_out)
     {
-        if (ULongToPtr(params32->pProfilingData))
-            *(PTR32 *)ULongToPtr(params32->pProfilingData) = PtrToUlong(profiling_data);
+        if ((ULONG_PTR)profiling_data > MAXDWORD)
+        {
+            WARN("xessGetProfilingData returned pointer %p above 32-bit range in WoW64.\n", profiling_data);
+            params.result = XESS_RESULT_ERROR_UNSUPPORTED;
+        }
+        else
+        {
+            *profiling_data_out = (PTR32)(ULONG_PTR)profiling_data;
+        }
     }
     params32->result = params.result;
     return ret;
