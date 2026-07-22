@@ -102,75 +102,10 @@ static VkImageView get_vk_image_view(VkDevice vk_device, PFN_vkCreateImageView p
     return image_view;
 }
 
-static xess_result_t translate_texture_resource(
-    ID3D12DXVKInteropDevice3 *interop,
-    VkDevice vk_device,
-    PFN_vkCreateImageView pfn_vkCreateImageView,
-    ID3D12Resource *pTexture,
-    xess_vk_image_view_info *pTextureInfo,
-    VkImageView *pImageView,
-    const char *texture_name)
+static VkImageViewType get_vk_image_view_type_from_desc(const D3D12_RESOURCE_DESC *desc)
 {
-    D3D12_RESOURCE_DESC desc;
-    UINT mip_level_count;
-    UINT64 vk_handle;
-    UINT64 buffer_offset;
-    HRESULT hr;
-    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-    TRACE("Handling %s texture...\n", texture_name);
-
-    hr = ID3D12DXVKInteropDevice3_GetVulkanResourceInfo1(interop, pTexture,
-        &vk_handle, &buffer_offset, &pTextureInfo->format);
-    (void)buffer_offset; // not used for textures
-    if (FAILED(hr))
-    {
-        WARN("Failed to get %s texture info: %#lx\n", texture_name, hr);
-        return XESS_RESULT_ERROR_UNKNOWN;
-    }
-
-    desc = ID3D12Resource_GetDesc(pTexture);
-    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
-    {
-        WARN("%s resource is a buffer, expected a texture.\n", texture_name);
-        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-    mip_level_count = get_mip_level_count_from_desc(&desc);
-    TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
-          texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
-    TRACE("%s texture: computed mip_level_count=%u\n",
-          texture_name, mip_level_count);
-    if (pTextureInfo->format == VK_FORMAT_D16_UNORM || pTextureInfo->format == VK_FORMAT_X8_D24_UNORM_PACK32 ||
-        pTextureInfo->format == VK_FORMAT_D32_SFLOAT || pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-        pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
-    {
-        aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        if (pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT ||
-            pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
-            aspect_mask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-    }
-
-    pTextureInfo->image = (VkImage)vk_handle;
-    pTextureInfo->width = (unsigned int)desc.Width;
-    pTextureInfo->height = (unsigned int)desc.Height;
-    pTextureInfo->subresourceRange.aspectMask = aspect_mask;
-    pTextureInfo->subresourceRange.baseMipLevel = 0;
-    pTextureInfo->subresourceRange.levelCount = mip_level_count;
-    pTextureInfo->subresourceRange.baseArrayLayer = 0;
-    pTextureInfo->subresourceRange.layerCount = (desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc.DepthOrArraySize;
-
-    /* Create VkImageView */
-    *pImageView = get_vk_image_view(vk_device, pfn_vkCreateImageView,
-        pTextureInfo->image, pTextureInfo->format, &desc, aspect_mask, mip_level_count);
-    if (*pImageView == VK_NULL_HANDLE)
-    {
-        WARN("Failed to create %s texture image view\n", texture_name);
-        return XESS_RESULT_ERROR_UNKNOWN;
-    }
-    pTextureInfo->imageView = *pImageView;
-
-    TRACE("Finished %s texture handler.\n", texture_name);
-    return XESS_RESULT_SUCCESS;
+    return (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? VK_IMAGE_VIEW_TYPE_3D
+        : ((desc->DepthOrArraySize > 1) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D);
 }
 
 static xess_result_t translate_heap_to_vk_memory(ID3D12Heap *heap, VkDeviceMemory *vk_memory, uint64_t *base_offset)
@@ -241,12 +176,64 @@ struct xess_d3d12_state_tracker
     ID3D12Heap *temp_texture_heap;
     uint64_t buffer_heap_base_offset;
     uint64_t texture_heap_base_offset;
+    /* Keep image views alive after command recording and reuse them across executes. */
+    struct list image_view_entries;
+    PFN_vkDestroyImageView pfn_vkDestroyImageView;
+};
+
+struct xess_d3d12_image_view_entry
+{
+    struct list entry;
+    VkImage image;
+    VkFormat format;
+    VkImageAspectFlags aspect_mask;
+    VkImageViewType view_type;
+    UINT mip_level_count;
+    UINT layer_count;
+    VkImageView image_view;
+    UINT reuse_count;
 };
 
 static struct list xess_d3d12_state_trackers = LIST_INIT(xess_d3d12_state_trackers);
 
 static void xess_d3d12_release_state_tracker(struct xess_d3d12_state_tracker *entry)
 {
+    PFN_vkDeviceWaitIdle pfn_vkDeviceWaitIdle;
+    PFN_vkDestroyImageView pfn_vkDestroyImageView = entry->pfn_vkDestroyImageView;
+    struct xess_d3d12_image_view_entry *view_entry, *view_entry_next;
+    VkResult vk_result;
+
+    if (entry->vk_device &&
+        (!list_empty(&entry->image_view_entries) || entry->pipeline_cache != VK_NULL_HANDLE))
+    {
+        pfn_vkDeviceWaitIdle = (PFN_vkDeviceWaitIdle)vkGetDeviceProcAddr(entry->vk_device, "vkDeviceWaitIdle");
+        if (pfn_vkDeviceWaitIdle)
+        {
+            vk_result = pfn_vkDeviceWaitIdle(entry->vk_device);
+            if (vk_result != VK_SUCCESS)
+                WARN("vkDeviceWaitIdle failed while releasing context %p: %d\n", entry->context, vk_result);
+        }
+    }
+
+    if (!pfn_vkDestroyImageView && entry->vk_device)
+        pfn_vkDestroyImageView = (PFN_vkDestroyImageView)vkGetDeviceProcAddr(entry->vk_device, "vkDestroyImageView");
+
+    if (!pfn_vkDestroyImageView && !list_empty(&entry->image_view_entries))
+        WARN("Unable to resolve vkDestroyImageView for %p, leaking %u cached image views.\n", entry->context,
+            list_count(&entry->image_view_entries));
+
+    LIST_FOR_EACH_ENTRY_SAFE(view_entry, view_entry_next, &entry->image_view_entries,
+        struct xess_d3d12_image_view_entry, entry)
+    {
+        if (view_entry->reuse_count)
+            TRACE("Destroying cached VkImageView %#I64x (image %#I64x), reused %u times.\n",
+                (UINT64)view_entry->image_view, (UINT64)view_entry->image, view_entry->reuse_count);
+        list_remove(&view_entry->entry);
+        if (pfn_vkDestroyImageView)
+            pfn_vkDestroyImageView(entry->vk_device, view_entry->image_view, NULL);
+        free(view_entry);
+    }
+
     if (entry->pipeline_cache != VK_NULL_HANDLE && entry->pfn_vkDestroyPipelineCache)
     {
         entry->pfn_vkDestroyPipelineCache(entry->vk_device, entry->pipeline_cache, NULL);
@@ -254,6 +241,7 @@ static void xess_d3d12_release_state_tracker(struct xess_d3d12_state_tracker *en
     }
     entry->vk_device = VK_NULL_HANDLE;
     entry->pfn_vkDestroyPipelineCache = NULL;
+    entry->pfn_vkDestroyImageView = NULL;
 
     if (entry->temp_texture_heap)
     {
@@ -267,6 +255,7 @@ static void xess_d3d12_release_state_tracker(struct xess_d3d12_state_tracker *en
     }
     entry->buffer_heap_base_offset = 0;
     entry->texture_heap_base_offset = 0;
+    list_init(&entry->image_view_entries);
 }
 
 static struct xess_d3d12_state_tracker *xess_d3d12_find_state_tracker(xess_context_handle_t hContext)
@@ -280,6 +269,148 @@ static struct xess_d3d12_state_tracker *xess_d3d12_find_state_tracker(xess_conte
     }
 
     return NULL;
+}
+
+static void xess_d3d12_set_image_view_destroy_proc(xess_context_handle_t hContext,
+    PFN_vkDestroyImageView pfn_vkDestroyImageView)
+{
+    struct xess_d3d12_state_tracker *entry;
+
+    if ((entry = xess_d3d12_find_state_tracker(hContext)))
+        entry->pfn_vkDestroyImageView = pfn_vkDestroyImageView;
+}
+
+static VkImageView xess_d3d12_get_or_create_image_view(xess_context_handle_t hContext,
+    VkDevice vk_device, PFN_vkCreateImageView pfn_vkCreateImageView,
+    VkImage vk_image, VkFormat format, const D3D12_RESOURCE_DESC *desc,
+    VkImageAspectFlags aspect_mask, UINT mip_level_count)
+{
+    struct xess_d3d12_state_tracker *state_entry;
+    struct xess_d3d12_image_view_entry *cache_entry;
+    VkImageViewType view_type;
+    UINT layer_count;
+    VkImageView image_view;
+
+    state_entry = xess_d3d12_find_state_tracker(hContext);
+    if (!state_entry)
+    {
+        WARN("No state tracker found for context %p when creating image view.\n", hContext);
+        return VK_NULL_HANDLE;
+    }
+
+    view_type = get_vk_image_view_type_from_desc(desc);
+    layer_count = (desc->Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc->DepthOrArraySize;
+
+    LIST_FOR_EACH_ENTRY(cache_entry, &state_entry->image_view_entries, struct xess_d3d12_image_view_entry, entry)
+    {
+        if (cache_entry->image == vk_image &&
+            cache_entry->format == format &&
+            cache_entry->aspect_mask == aspect_mask &&
+            cache_entry->view_type == view_type &&
+            cache_entry->mip_level_count == mip_level_count &&
+            cache_entry->layer_count == layer_count)
+        {
+            cache_entry->reuse_count++;
+            if (cache_entry->reuse_count == 1)
+                TRACE("Reusing cached VkImageView %#I64x for image %#I64x (format %u).\n",
+                    (UINT64)cache_entry->image_view, (UINT64)cache_entry->image, cache_entry->format);
+            return cache_entry->image_view;
+        }
+    }
+
+    image_view = get_vk_image_view(vk_device, pfn_vkCreateImageView, vk_image, format, desc, aspect_mask, mip_level_count);
+    if (image_view == VK_NULL_HANDLE)
+        return VK_NULL_HANDLE;
+
+    if (!(cache_entry = calloc(1, sizeof(*cache_entry))))
+    {
+        WARN("Failed to allocate image view cache entry. Falling back to uncached VkImageView.\n");
+        return image_view;
+    }
+
+    cache_entry->image = vk_image;
+    cache_entry->format = format;
+    cache_entry->aspect_mask = aspect_mask;
+    cache_entry->view_type = view_type;
+    cache_entry->mip_level_count = mip_level_count;
+    cache_entry->layer_count = layer_count;
+    cache_entry->image_view = image_view;
+    cache_entry->reuse_count = 0;
+    list_add_tail(&state_entry->image_view_entries, &cache_entry->entry);
+    TRACE("Cached new VkImageView %#I64x for image %#I64x (format %u, mips %u, layers %u).\n",
+        (UINT64)cache_entry->image_view, (UINT64)cache_entry->image, cache_entry->format,
+        cache_entry->mip_level_count, cache_entry->layer_count);
+    return image_view;
+}
+
+static xess_result_t translate_texture_resource(
+    xess_context_handle_t hContext,
+    ID3D12DXVKInteropDevice3 *interop,
+    VkDevice vk_device,
+    PFN_vkCreateImageView pfn_vkCreateImageView,
+    ID3D12Resource *pTexture,
+    xess_vk_image_view_info *pTextureInfo,
+    const char *texture_name)
+{
+    D3D12_RESOURCE_DESC desc;
+    UINT mip_level_count;
+    UINT64 vk_handle;
+    UINT64 buffer_offset;
+    HRESULT hr;
+    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    TRACE("Handling %s texture...\n", texture_name);
+
+    hr = ID3D12DXVKInteropDevice3_GetVulkanResourceInfo1(interop, pTexture,
+        &vk_handle, &buffer_offset, &pTextureInfo->format);
+    (void)buffer_offset; // not used for textures
+    if (FAILED(hr))
+    {
+        WARN("Failed to get %s texture info: %#lx\n", texture_name, hr);
+        return XESS_RESULT_ERROR_UNKNOWN;
+    }
+
+    desc = ID3D12Resource_GetDesc(pTexture);
+    if (desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+    {
+        WARN("%s resource is a buffer, expected a texture.\n", texture_name);
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+    mip_level_count = get_mip_level_count_from_desc(&desc);
+    TRACE("%s texture: %I64ux%u, MipLevels=%u, ArraySize=%u, Format=%u\n",
+          texture_name, desc.Width, desc.Height, desc.MipLevels, desc.DepthOrArraySize, desc.Format);
+    TRACE("%s texture: computed mip_level_count=%u\n",
+          texture_name, mip_level_count);
+    if (pTextureInfo->format == VK_FORMAT_D16_UNORM || pTextureInfo->format == VK_FORMAT_X8_D24_UNORM_PACK32 ||
+        pTextureInfo->format == VK_FORMAT_D32_SFLOAT || pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+        pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+    {
+        aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        if (pTextureInfo->format == VK_FORMAT_D16_UNORM_S8_UINT || pTextureInfo->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+            pTextureInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+            aspect_mask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+
+    pTextureInfo->image = (VkImage)vk_handle;
+    pTextureInfo->width = (unsigned int)desc.Width;
+    pTextureInfo->height = (unsigned int)desc.Height;
+    pTextureInfo->subresourceRange.aspectMask = aspect_mask;
+    pTextureInfo->subresourceRange.baseMipLevel = 0;
+    pTextureInfo->subresourceRange.levelCount = mip_level_count;
+    pTextureInfo->subresourceRange.baseArrayLayer = 0;
+    pTextureInfo->subresourceRange.layerCount = (desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? 1 : desc.DepthOrArraySize;
+
+    /* Create VkImageView */
+    pTextureInfo->imageView = xess_d3d12_get_or_create_image_view(hContext, vk_device, pfn_vkCreateImageView,
+        pTextureInfo->image, pTextureInfo->format, &desc, aspect_mask, mip_level_count);
+    if (pTextureInfo->imageView == VK_NULL_HANDLE)
+    {
+        WARN("Failed to create %s texture image view\n", texture_name);
+        return XESS_RESULT_ERROR_UNKNOWN;
+    }
+
+    TRACE("Finished %s texture handler.\n", texture_name);
+    return XESS_RESULT_SUCCESS;
 }
 
 static BOOL xess_d3d12_create_state_tracker(xess_context_handle_t hContext, VkDevice vk_device)
@@ -299,6 +430,7 @@ static BOOL xess_d3d12_create_state_tracker(xess_context_handle_t hContext, VkDe
             return FALSE;
 
         entry->context = hContext;
+        list_init(&entry->image_view_entries);
         list_add_tail(&xess_d3d12_state_trackers, &entry->entry);
     }
 
@@ -365,6 +497,7 @@ static BOOL xess_d3d12_track_state_heaps(xess_context_handle_t hContext,
         }
 
         entry->context = hContext;
+        list_init(&entry->image_view_entries);
         list_add_tail(&xess_d3d12_state_trackers, &entry->entry);
     }
     else
@@ -664,10 +797,7 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     VkDevice vk_device = VK_NULL_HANDLE;
     VkPhysicalDevice vk_physical_device = VK_NULL_HANDLE;
     VkInstance vk_instance = VK_NULL_HANDLE;
-    VkImageView image_views[6] = {VK_NULL_HANDLE};
-    UINT image_view_count = 0;
     PFN_vkCreateImageView pfn_vkCreateImageView = NULL;
-    PFN_vkDestroyImageView pfn_vkDestroyImageView = NULL;
     NTSTATUS status;
 
     TRACE("(%p, %p, %p)\n", hContext, pCommandList, pExecParams);
@@ -718,16 +848,17 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
 
     /* Get Vulkan function pointers */
     pfn_vkCreateImageView = (PFN_vkCreateImageView)vkGetDeviceProcAddr(vk_device, "vkCreateImageView");
-    pfn_vkDestroyImageView = (PFN_vkDestroyImageView)vkGetDeviceProcAddr(vk_device, "vkDestroyImageView");
-    if (!pfn_vkCreateImageView || !pfn_vkDestroyImageView)
+    if (!pfn_vkCreateImageView)
     {
         WARN("Failed to get Vulkan function pointers\n");
         ID3D12DXVKInteropDevice3_Release(interop);
         ID3D12Device_Release(pDevice);
         return XESS_RESULT_ERROR_UNSUPPORTED;
     }
+    xess_d3d12_set_image_view_destroy_proc(hContext,
+        (PFN_vkDestroyImageView)vkGetDeviceProcAddr(vk_device, "vkDestroyImageView"));
 
-    TRACE("Got Vulkan function pointers pfn_vkCreateImageView=%p, pfn_vkDestroyImageView=%p\n", pfn_vkCreateImageView, pfn_vkDestroyImageView);
+    TRACE("Got Vulkan function pointer pfn_vkCreateImageView=%p\n", pfn_vkCreateImageView);
 
     /* Get Vulkan command buffer from D3D12 command list */
     hr = ID3D12DXVKInteropDevice3_BeginVkCommandBufferInterop(interop, (ID3D12CommandList*)pCommandList, &vk_command_buffer);
@@ -744,67 +875,55 @@ xess_result_t CDECL xessD3D12Execute(xess_context_handle_t hContext,
     /* Get color texture VkImage and format */
     if (pExecParams->pColorTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pColorTexture, &vk_exec_params.colorTexture,
-            &image_views[image_view_count], "color");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pColorTexture, &vk_exec_params.colorTexture, "color");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Get velocity texture if provided */
     if (pExecParams->pVelocityTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pVelocityTexture, &vk_exec_params.velocityTexture,
-            &image_views[image_view_count], "velocity");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pVelocityTexture, &vk_exec_params.velocityTexture, "velocity");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Get depth texture if provided */
     if (pExecParams->pDepthTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pDepthTexture, &vk_exec_params.depthTexture,
-            &image_views[image_view_count], "depth");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pDepthTexture, &vk_exec_params.depthTexture, "depth");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Get exposure scale texture if provided */
     if (pExecParams->pExposureScaleTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pExposureScaleTexture, &vk_exec_params.exposureScaleTexture,
-            &image_views[image_view_count], "exposure scale");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pExposureScaleTexture, &vk_exec_params.exposureScaleTexture, "exposure scale");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Get responsive pixel mask texture if provided */
     if (pExecParams->pResponsivePixelMaskTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pResponsivePixelMaskTexture, &vk_exec_params.responsivePixelMaskTexture,
-            &image_views[image_view_count], "responsive pixel mask");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pResponsivePixelMaskTexture, &vk_exec_params.responsivePixelMaskTexture, "responsive pixel mask");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Get output texture VkImage and format */
     if (pExecParams->pOutputTexture)
     {
-        result = translate_texture_resource(interop, vk_device, pfn_vkCreateImageView,
-            pExecParams->pOutputTexture, &vk_exec_params.outputTexture,
-            &image_views[image_view_count], "output");
+        result = translate_texture_resource(hContext, interop, vk_device, pfn_vkCreateImageView,
+            pExecParams->pOutputTexture, &vk_exec_params.outputTexture, "output");
         if (result != XESS_RESULT_SUCCESS)
             goto cleanup;
-        image_view_count++;
     }
 
     /* Copy execution parameters */
@@ -840,17 +959,6 @@ cleanup:
     /* End Vulkan command buffer interop */
     if (vk_command_buffer != VK_NULL_HANDLE)
         ID3D12DXVKInteropDevice3_EndVkCommandBufferInterop(interop, (ID3D12CommandList*)pCommandList);
-
-    /* Destroy created image views */
-    if (pfn_vkDestroyImageView)
-    {
-        UINT i;
-        for (i = 0; i < image_view_count; i++)
-        {
-            if (image_views[i] != VK_NULL_HANDLE)
-                pfn_vkDestroyImageView(vk_device, image_views[i], NULL);
-        }
-    }
 
     ID3D12DXVKInteropDevice3_Release(interop);
     ID3D12Device_Release(pDevice);
