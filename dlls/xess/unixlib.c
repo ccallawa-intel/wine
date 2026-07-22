@@ -203,8 +203,10 @@ static NTSTATUS xess_init( void *args )
     /* Allow user to specify a custom XeSS implementation */
     xess_lib_path = getenv("XESS_LIB_OVERRIDE");
     if (!xess_lib_path)
-        // default path of "libxess.so" would clash with the Unixlib name
+    {
+        /* Default path of "libxess.so" would clash with the Unixlib name. */
         xess_lib_path = "libxess_override.so";
+    }
 
     TRACE("Loading XeSS implementation: %s\n", xess_lib_path);
 
