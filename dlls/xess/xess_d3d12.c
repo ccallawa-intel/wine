@@ -232,6 +232,11 @@ struct xess_d3d12_state_tracker
 {
     struct list entry;
     xess_context_handle_t context;
+    /* for pipeline cache*/
+    VkDevice vk_device;
+    VkPipelineCache pipeline_cache;
+    PFN_vkDestroyPipelineCache pfn_vkDestroyPipelineCache;
+    /* for temporary heaps */
     ID3D12Heap *temp_buffer_heap;
     ID3D12Heap *temp_texture_heap;
     uint64_t buffer_heap_base_offset;
@@ -242,10 +247,26 @@ static struct list xess_d3d12_state_trackers = LIST_INIT(xess_d3d12_state_tracke
 
 static void xess_d3d12_release_state_tracker(struct xess_d3d12_state_tracker *entry)
 {
+    if (entry->pipeline_cache != VK_NULL_HANDLE && entry->pfn_vkDestroyPipelineCache)
+    {
+        entry->pfn_vkDestroyPipelineCache(entry->vk_device, entry->pipeline_cache, NULL);
+        entry->pipeline_cache = VK_NULL_HANDLE;
+    }
+    entry->vk_device = VK_NULL_HANDLE;
+    entry->pfn_vkDestroyPipelineCache = NULL;
+
     if (entry->temp_texture_heap)
+    {
         ID3D12Heap_Release(entry->temp_texture_heap);
+        entry->temp_texture_heap = NULL;
+    }
     if (entry->temp_buffer_heap)
+    {
         ID3D12Heap_Release(entry->temp_buffer_heap);
+        entry->temp_buffer_heap = NULL;
+    }
+    entry->buffer_heap_base_offset = 0;
+    entry->texture_heap_base_offset = 0;
 }
 
 static struct xess_d3d12_state_tracker *xess_d3d12_find_state_tracker(xess_context_handle_t hContext)
@@ -259,6 +280,65 @@ static struct xess_d3d12_state_tracker *xess_d3d12_find_state_tracker(xess_conte
     }
 
     return NULL;
+}
+
+static BOOL xess_d3d12_create_state_tracker(xess_context_handle_t hContext, VkDevice vk_device)
+{
+    struct xess_d3d12_state_tracker *entry;
+    PFN_vkCreatePipelineCache pfn_vkCreatePipelineCache;
+    VkPipelineCacheCreateInfo create_info;
+    VkResult vk_result;
+
+    if ((entry = xess_d3d12_find_state_tracker(hContext)))
+    {
+        xess_d3d12_release_state_tracker(entry);
+    }
+    else
+    {
+        if (!(entry = calloc(1, sizeof(*entry))))
+            return FALSE;
+
+        entry->context = hContext;
+        list_add_tail(&xess_d3d12_state_trackers, &entry->entry);
+    }
+
+    entry->vk_device = vk_device;
+    pfn_vkCreatePipelineCache = (PFN_vkCreatePipelineCache)vkGetDeviceProcAddr(vk_device, "vkCreatePipelineCache");
+    entry->pfn_vkDestroyPipelineCache = (PFN_vkDestroyPipelineCache)vkGetDeviceProcAddr(vk_device, "vkDestroyPipelineCache");
+    if (!pfn_vkCreatePipelineCache || !entry->pfn_vkDestroyPipelineCache)
+    {
+        WARN("Failed to get Vulkan pipeline cache function pointers for context %p.\n", hContext);
+        return FALSE;
+    }
+
+    memset(&create_info, 0, sizeof(create_info));
+    create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+    vk_result = pfn_vkCreatePipelineCache(vk_device, &create_info, NULL, &entry->pipeline_cache);
+    if (vk_result != VK_SUCCESS)
+    {
+        WARN("Failed to create VkPipelineCache for context %p: %d\n", hContext, vk_result);
+        entry->pfn_vkDestroyPipelineCache = NULL;
+        entry->vk_device = VK_NULL_HANDLE;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static xess_result_t xess_d3d12_get_context_pipeline_cache(xess_context_handle_t hContext,
+    VkPipelineCache *pipeline_cache)
+{
+    struct xess_d3d12_state_tracker *entry;
+
+    if (!(entry = xess_d3d12_find_state_tracker(hContext)) || entry->pipeline_cache == VK_NULL_HANDLE)
+    {
+        WARN("No pipeline cache is tracked for context %p.\n", hContext);
+        return XESS_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    *pipeline_cache = entry->pipeline_cache;
+    return XESS_RESULT_SUCCESS;
 }
 
 static BOOL xess_d3d12_track_state_heaps(xess_context_handle_t hContext,
@@ -289,7 +369,10 @@ static BOOL xess_d3d12_track_state_heaps(xess_context_handle_t hContext,
     }
     else
     {
-        xess_d3d12_release_state_tracker(entry);
+        if (entry->temp_texture_heap)
+            ID3D12Heap_Release(entry->temp_texture_heap);
+        if (entry->temp_buffer_heap)
+            ID3D12Heap_Release(entry->temp_buffer_heap);
     }
 
     entry->temp_buffer_heap = temp_buffer_heap;
@@ -389,6 +472,15 @@ xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_h
         ERR("Unix call unix_xessVKCreateContext failed, status %#lx\n", status);
         return XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
     }
+
+    if (unix_params.result == XESS_RESULT_SUCCESS && !xess_d3d12_create_state_tracker(*phContext, vk_device))
+    {
+        ERR("Failed to initialize state tracker for context %p\n", *phContext);
+        xessDestroyContext(*phContext);
+        *phContext = NULL;
+        return XESS_RESULT_ERROR_UNKNOWN;
+    }
+
     TRACE("xessVKCreateContext result: %s (0x%x)\n", xess_result_to_string(unix_params.result), unix_params.result);
     return unix_params.result;
 }
@@ -397,6 +489,7 @@ xess_result_t CDECL xessD3D12BuildPipelines(xess_context_handle_t hContext,
     ID3D12PipelineLibrary *pPipelineLibrary, bool blocking, uint32_t initFlags)
 {
     struct xess_vk_build_pipelines_params unix_params;
+    xess_result_t result;
     NTSTATUS status;
 
     TRACE("(%p, %p, %u, 0x%x)\n", hContext, pPipelineLibrary, blocking, initFlags);
@@ -404,8 +497,11 @@ xess_result_t CDECL xessD3D12BuildPipelines(xess_context_handle_t hContext,
     if (pPipelineLibrary)
         WARN("Ignoring ID3D12PipelineLibrary %p for context %p.\n", pPipelineLibrary, hContext);
 
+    result = xess_d3d12_get_context_pipeline_cache(hContext, &unix_params.pipelineCache);
+    if (result != XESS_RESULT_SUCCESS)
+        return result;
+
     unix_params.hContext = hContext;
-    unix_params.pipelineCache = VK_NULL_HANDLE;
     unix_params.blocking = blocking;
     unix_params.initFlags = initFlags;
     unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
@@ -462,7 +558,9 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
     else
         vk_init_params.textureHeapOffset = 0;
 
-    vk_init_params.pipelineCache = VK_NULL_HANDLE; // pipelines are optional and hard to implement
+    result = xess_d3d12_get_context_pipeline_cache(hContext, &vk_init_params.pipelineCache);
+    if (result != XESS_RESULT_SUCCESS)
+        return result;
 
     memset(&unix_params, 0, sizeof(unix_params));
     unix_params.hContext = hContext;
