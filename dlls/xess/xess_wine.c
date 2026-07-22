@@ -180,14 +180,6 @@ XESS_API xess_result_t xessSetContextParameterF(xess_context_handle_t hContext, 
     return params.result;
 }
 
-XESS_API xess_result_t xessGetContextParameterP(xess_context_handle_t hContext, uint32_t param, uint32_t size, void *pValue)
-{
-    struct xess_get_context_parameter_p_params params = { hContext, param, size, pValue };
-    TRACE("(%p, %#x, %u, %p)\n", hContext, param, size, pValue);
-    XESS_WINE_UNIX_CALL(unix_xessGetContextParameterP, &params);
-    return params.result;
-}
-
 XESS_API xess_result_t xessGetMaxResponsiveMaskValue(xess_context_handle_t hContext, float *pMaxValue)
 {
     struct xess_get_max_responsive_mask_value_params params = { hContext, pMaxValue };
