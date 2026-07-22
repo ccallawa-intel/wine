@@ -396,8 +396,28 @@ xess_result_t CDECL xessD3D12CreateContext(ID3D12Device *pDevice, xess_context_h
 xess_result_t CDECL xessD3D12BuildPipelines(xess_context_handle_t hContext,
     ID3D12PipelineLibrary *pPipelineLibrary, bool blocking, uint32_t initFlags)
 {
+    struct xess_vk_build_pipelines_params unix_params;
+    NTSTATUS status;
+
     TRACE("(%p, %p, %u, 0x%x)\n", hContext, pPipelineLibrary, blocking, initFlags);
-    return XESS_RESULT_ERROR_NOT_IMPLEMENTED;
+
+    if (pPipelineLibrary)
+        WARN("Ignoring ID3D12PipelineLibrary %p for context %p.\n", pPipelineLibrary, hContext);
+
+    unix_params.hContext = hContext;
+    unix_params.pipelineCache = VK_NULL_HANDLE;
+    unix_params.blocking = blocking;
+    unix_params.initFlags = initFlags;
+    unix_params.result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    status = WINE_UNIX_CALL(unix_xessVKBuildPipelines, &unix_params);
+    if (status)
+    {
+        ERR("Unix call unix_xessVKBuildPipelines failed, status %#lx\n", status);
+        return XESS_RESULT_ERROR_CANT_LOAD_LIBRARY;
+    }
+
+    TRACE("xessVKBuildPipelines result: %s (0x%x)\n", xess_result_to_string(unix_params.result), unix_params.result);
+    return unix_params.result;
 }
 
 xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d12_init_params_t *pInitParams)
