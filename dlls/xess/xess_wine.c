@@ -56,7 +56,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
         break;
     case DLL_PROCESS_DETACH:
         if (reserved) break; // process is terminating, no need to clean up
-        xess_d3d12_destroy_all_heap_trackers();
+        xess_d3d12_destroy_all_state_trackers();
         break;
     }
 
@@ -69,7 +69,7 @@ XESS_API xess_result_t xessDestroyContext(xess_context_handle_t hContext)
     TRACE("(%p)\n", hContext);
     XESS_WINE_UNIX_CALL(unix_xessDestroyContext, &params);
     if (params.result == XESS_RESULT_SUCCESS)
-        xess_d3d12_destroy_heap_trackers(hContext);
+        xess_d3d12_destroy_state_tracker(hContext);
     return params.result;
 }
 

@@ -227,8 +227,8 @@ static xess_result_t translate_heap_to_vk_memory(ID3D12Heap *heap, VkDeviceMemor
     return XESS_RESULT_SUCCESS;
 }
 
-/* heap pointer tracking helpers */
-struct xess_d3d12_heap_tracker
+/* Per-context state tracking helpers. */
+struct xess_d3d12_state_tracker
 {
     struct list entry;
     xess_context_handle_t context;
@@ -238,9 +238,9 @@ struct xess_d3d12_heap_tracker
     uint64_t texture_heap_base_offset;
 };
 
-static struct list xess_d3d12_heap_trackers = LIST_INIT(xess_d3d12_heap_trackers);
+static struct list xess_d3d12_state_trackers = LIST_INIT(xess_d3d12_state_trackers);
 
-static void xess_d3d12_release_heap_trackers(struct xess_d3d12_heap_tracker *entry)
+static void xess_d3d12_release_state_tracker(struct xess_d3d12_state_tracker *entry)
 {
     if (entry->temp_texture_heap)
         ID3D12Heap_Release(entry->temp_texture_heap);
@@ -248,11 +248,11 @@ static void xess_d3d12_release_heap_trackers(struct xess_d3d12_heap_tracker *ent
         ID3D12Heap_Release(entry->temp_buffer_heap);
 }
 
-static struct xess_d3d12_heap_tracker *xess_d3d12_find_heap_trackers(xess_context_handle_t hContext)
+static struct xess_d3d12_state_tracker *xess_d3d12_find_state_tracker(xess_context_handle_t hContext)
 {
-    struct xess_d3d12_heap_tracker *entry;
+    struct xess_d3d12_state_tracker *entry;
 
-    LIST_FOR_EACH_ENTRY(entry, &xess_d3d12_heap_trackers, struct xess_d3d12_heap_tracker, entry)
+    LIST_FOR_EACH_ENTRY(entry, &xess_d3d12_state_trackers, struct xess_d3d12_state_tracker, entry)
     {
         if (entry->context == hContext)
             return entry;
@@ -261,18 +261,18 @@ static struct xess_d3d12_heap_tracker *xess_d3d12_find_heap_trackers(xess_contex
     return NULL;
 }
 
-static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
+static BOOL xess_d3d12_track_state_heaps(xess_context_handle_t hContext,
     ID3D12Heap *temp_buffer_heap, ID3D12Heap *temp_texture_heap,
     uint64_t buffer_heap_base_offset, uint64_t texture_heap_base_offset)
 {
-    struct xess_d3d12_heap_tracker *entry;
+    struct xess_d3d12_state_tracker *entry;
 
     if (temp_buffer_heap)
         ID3D12Heap_AddRef(temp_buffer_heap);
     if (temp_texture_heap)
         ID3D12Heap_AddRef(temp_texture_heap);
 
-    entry = xess_d3d12_find_heap_trackers(hContext);
+    entry = xess_d3d12_find_state_tracker(hContext);
     if (!entry)
     {
         if (!(entry = calloc(1, sizeof(*entry))))
@@ -285,11 +285,11 @@ static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
         }
 
         entry->context = hContext;
-        list_add_tail(&xess_d3d12_heap_trackers, &entry->entry);
+        list_add_tail(&xess_d3d12_state_trackers, &entry->entry);
     }
     else
     {
-        xess_d3d12_release_heap_trackers(entry);
+        xess_d3d12_release_state_tracker(entry);
     }
 
     entry->temp_buffer_heap = temp_buffer_heap;
@@ -299,18 +299,18 @@ static BOOL xess_d3d12_track_heaps(xess_context_handle_t hContext,
     return TRUE;
 }
 
-static void xess_d3d12_get_heap_trackers(xess_context_handle_t hContext,
+static void xess_d3d12_get_state_tracker_heaps(xess_context_handle_t hContext,
     ID3D12Heap **temp_buffer_heap, ID3D12Heap **temp_texture_heap,
     uint64_t *buffer_heap_base_offset, uint64_t *texture_heap_base_offset)
 {
-    struct xess_d3d12_heap_tracker *entry;
+    struct xess_d3d12_state_tracker *entry;
 
     *temp_buffer_heap = NULL;
     *temp_texture_heap = NULL;
     *buffer_heap_base_offset = 0;
     *texture_heap_base_offset = 0;
 
-    if ((entry = xess_d3d12_find_heap_trackers(hContext)))
+    if ((entry = xess_d3d12_find_state_tracker(hContext)))
     {
         *temp_buffer_heap = entry->temp_buffer_heap;
         *temp_texture_heap = entry->temp_texture_heap;
@@ -319,26 +319,26 @@ static void xess_d3d12_get_heap_trackers(xess_context_handle_t hContext,
     }
 }
 
-void xess_d3d12_destroy_heap_trackers(xess_context_handle_t hContext)
+void xess_d3d12_destroy_state_tracker(xess_context_handle_t hContext)
 {
-    struct xess_d3d12_heap_tracker *entry;
+    struct xess_d3d12_state_tracker *entry;
 
-    if ((entry = xess_d3d12_find_heap_trackers(hContext)))
+    if ((entry = xess_d3d12_find_state_tracker(hContext)))
     {
         list_remove(&entry->entry);
-        xess_d3d12_release_heap_trackers(entry);
+        xess_d3d12_release_state_tracker(entry);
         free(entry);
     }
 }
 
-void xess_d3d12_destroy_all_heap_trackers(void)
+void xess_d3d12_destroy_all_state_trackers(void)
 {
-    struct xess_d3d12_heap_tracker *entry, *next;
+    struct xess_d3d12_state_tracker *entry, *next;
 
-    LIST_FOR_EACH_ENTRY_SAFE(entry, next, &xess_d3d12_heap_trackers, struct xess_d3d12_heap_tracker, entry)
+    LIST_FOR_EACH_ENTRY_SAFE(entry, next, &xess_d3d12_state_trackers, struct xess_d3d12_state_tracker, entry)
     {
         list_remove(&entry->entry);
-        xess_d3d12_release_heap_trackers(entry);
+        xess_d3d12_release_state_tracker(entry);
         free(entry);
     }
 }
@@ -477,7 +477,7 @@ xess_result_t CDECL xessD3D12Init(xess_context_handle_t hContext, const xess_d3d
 
     if (unix_params.result == XESS_RESULT_SUCCESS)
     {
-        if (!xess_d3d12_track_heaps(hContext, pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap,
+        if (!xess_d3d12_track_state_heaps(hContext, pInitParams->pTempBufferHeap, pInitParams->pTempTextureHeap,
             buffer_heap_base_offset, texture_heap_base_offset))
         {
             ERR("Failed to track heaps for context %p\n", hContext);
@@ -525,7 +525,7 @@ xess_result_t CDECL xessD3D12GetInitParams(xess_context_handle_t hContext, xess_
     pInitParams->initFlags = vk_init_params.initFlags;
     pInitParams->creationNodeMask = vk_init_params.creationNodeMask;
     pInitParams->visibleNodeMask = vk_init_params.visibleNodeMask;
-    xess_d3d12_get_heap_trackers(hContext, &pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap,
+    xess_d3d12_get_state_tracker_heaps(hContext, &pInitParams->pTempBufferHeap, &pInitParams->pTempTextureHeap,
         &buffer_heap_base_offset, &texture_heap_base_offset);
 
     if (vk_init_params.bufferHeapOffset >= buffer_heap_base_offset)
