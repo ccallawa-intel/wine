@@ -81,6 +81,78 @@ static VkDeviceMemory get_host_device_memory(VkDeviceMemory wine_device_memory)
     return device_memory->host.device_memory;
 }
 
+struct xess_context_init_params_entry
+{
+    xess_context_handle_t context;
+    VkDeviceMemory temp_buffer_heap;
+    VkDeviceMemory temp_texture_heap;
+};
+
+static struct xess_context_init_params_entry *xess_context_init_params_entries;
+static size_t xess_context_init_params_entry_count;
+static size_t xess_context_init_params_entry_capacity;
+
+static struct xess_context_init_params_entry *find_xess_context_init_params_entry( xess_context_handle_t context )
+{
+    size_t i;
+
+    for (i = 0; i < xess_context_init_params_entry_count; ++i)
+    {
+        if (xess_context_init_params_entries[i].context == context)
+            return &xess_context_init_params_entries[i];
+    }
+
+    return NULL;
+}
+
+static BOOL store_xess_context_init_params_entry( xess_context_handle_t context,
+                                                   VkDeviceMemory temp_buffer_heap,
+                                                   VkDeviceMemory temp_texture_heap )
+{
+    struct xess_context_init_params_entry *entry;
+
+    entry = find_xess_context_init_params_entry( context );
+    if (entry)
+    {
+        entry->temp_buffer_heap = temp_buffer_heap;
+        entry->temp_texture_heap = temp_texture_heap;
+        return TRUE;
+    }
+
+    if (xess_context_init_params_entry_count == xess_context_init_params_entry_capacity)
+    {
+        size_t new_capacity = xess_context_init_params_entry_capacity ? xess_context_init_params_entry_capacity * 2 : 8;
+        struct xess_context_init_params_entry *new_entries;
+
+        new_entries = realloc( xess_context_init_params_entries, new_capacity * sizeof(*new_entries) );
+        if (!new_entries)
+            return FALSE;
+
+        xess_context_init_params_entries = new_entries;
+        xess_context_init_params_entry_capacity = new_capacity;
+    }
+
+    entry = &xess_context_init_params_entries[xess_context_init_params_entry_count++];
+    entry->context = context;
+    entry->temp_buffer_heap = temp_buffer_heap;
+    entry->temp_texture_heap = temp_texture_heap;
+    return TRUE;
+}
+
+static void remove_xess_context_init_params_entry( xess_context_handle_t context )
+{
+    size_t i;
+
+    for (i = 0; i < xess_context_init_params_entry_count; ++i)
+    {
+        if (xess_context_init_params_entries[i].context == context)
+        {
+            xess_context_init_params_entries[i] = xess_context_init_params_entries[--xess_context_init_params_entry_count];
+            return;
+        }
+    }
+}
+
 static void *override_library = NULL;
 
 static xess_result_t (*p_xessDestroyContext)(xess_context_handle_t);
@@ -203,6 +275,8 @@ static NTSTATUS xess_destroy_context( void *args )
     struct xess_destroy_context_params *params = args;
     if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessDestroyContext( params->hContext );
+    if (params->result == XESS_RESULT_SUCCESS)
+        remove_xess_context_init_params_entry( params->hContext );
     return STATUS_SUCCESS;
 }
 
@@ -419,6 +493,8 @@ static NTSTATUS xess_vk_init( void *args )
 {
     struct xess_vk_init_params *params = args;
     const xess_vk_init_params_t *init_params;
+    VkDeviceMemory client_temp_buffer_heap = VK_NULL_HANDLE;
+    VkDeviceMemory client_temp_texture_heap = VK_NULL_HANDLE;
     xess_vk_init_params_t host_init_params;
 
     if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
@@ -426,6 +502,8 @@ static NTSTATUS xess_vk_init( void *args )
     init_params = params->pInitParams;
     if (init_params)
     {
+        client_temp_buffer_heap = init_params->tempBufferHeap;
+        client_temp_texture_heap = init_params->tempTextureHeap;
         host_init_params = *init_params;
         host_init_params.tempBufferHeap = get_host_device_memory( init_params->tempBufferHeap );
         host_init_params.tempTextureHeap = get_host_device_memory( init_params->tempTextureHeap );
@@ -433,14 +511,30 @@ static NTSTATUS xess_vk_init( void *args )
     }
 
     params->result = p_xessVKInit( params->hContext, init_params );
+    if (params->result == XESS_RESULT_SUCCESS && params->pInitParams)
+    {
+        if (!store_xess_context_init_params_entry( params->hContext, client_temp_buffer_heap, client_temp_texture_heap ))
+            ERR("Failed to store XeSS context init params for %p\n", params->hContext);
+    }
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS xess_vk_get_init_params( void *args )
 {
     struct xess_vk_get_init_params_params *params = args;
+    struct xess_context_init_params_entry *entry;
+
     if (!override_library) { params->result = XESS_RESULT_ERROR_CANT_LOAD_LIBRARY; return STATUS_SUCCESS; }
     params->result = p_xessVKGetInitParams( params->hContext, params->pInitParams );
+    if (params->result == XESS_RESULT_SUCCESS && params->pInitParams)
+    {
+        entry = find_xess_context_init_params_entry( params->hContext );
+        if (entry)
+        {
+            params->pInitParams->tempBufferHeap = entry->temp_buffer_heap;
+            params->pInitParams->tempTextureHeap = entry->temp_texture_heap;
+        }
+    }
     return STATUS_SUCCESS;
 }
 
